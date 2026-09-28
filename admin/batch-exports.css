@@ -1,0 +1,7 @@
+.batch-export-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.batch-export-actions .button{padding:8px 10px;font-size:10px}
+@media(max-width:600px){
+  .batch-roster-heading{flex-direction:column;align-items:stretch}
+  .batch-export-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .batch-export-actions .button{white-space:normal;padding:8px 5px}
+}

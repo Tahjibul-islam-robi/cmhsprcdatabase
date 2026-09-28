@@ -9,6 +9,7 @@ This folder is the safe set of website files to upload to GitHub Pages. It conta
 - Search across profile fields, class and section filters, and numeric ID ranges.
 - Add, edit, delete, and CSV export with confirmation for contact data.
 - Numbered batches with student membership managed by exact student IDs.
+- Export the selected batch roster as Excel (.xlsx), CSV, or JSON, with all student profile fields and a privacy confirmation.
 - Batch-specific meeting attendance (Present, Absent, Late) and summaries.
 - Student filters combine ID ranges with inclusive batch-number ranges; filtered CSV exports include profile details and batch names.
 - Data quality checks for missing core fields, missing phone contacts, and duplicate class/section rolls.

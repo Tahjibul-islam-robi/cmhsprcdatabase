@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0f172a"><meta name="description" content="Private student records and club attendance administration.">
-  <title>Club Records | Admin</title><link rel="stylesheet" href="./styles.css"><script src="./config.js"></script>
+  <title>Club Records | Admin</title><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./batch-exports.css"><script src="./config.js"></script>
 </head>
 <body>
   <div class="login-wrap" id="login-view"><section class="login-card">
@@ -63,7 +63,7 @@
             <article class="panel batch-detail" id="batch-detail-panel"><div class="batch-detail-heading"><div><p class="eyebrow" id="batch-detail-number">BATCH</p><h3 id="batch-detail-title">Choose a batch</h3><p id="batch-detail-description"></p></div><button class="button danger-outline" id="delete-batch" type="button">Delete batch</button></div>
               <form id="batch-edit-form" class="batch-edit-form"><label>Batch name<input id="batch-name" maxlength="100" required></label><label>Description (optional)<input id="batch-description" maxlength="240"></label><button class="button outline" type="submit" id="save-batch">Save batch details</button></form>
               <div class="batch-member-tools"><div><h3>Add students by ID</h3><p>Enter one or more exact IDs, separated by commas, spaces, or new lines.</p></div><form id="batch-member-form"><label class="sr-only" for="batch-member-ids">Student IDs to add</label><textarea id="batch-member-ids" rows="3" placeholder="Example: 001, 002, 003"></textarea><div class="batch-member-actions"><p class="inline-error" id="batch-members-error" role="alert" hidden></p><button class="button primary" id="add-batch-members" type="submit">Add IDs to batch</button></div></form></div>
-              <div class="table-heading batch-roster-heading"><div><h3>Batch roster</h3><p id="batch-member-count">0 students</p></div></div><div id="batch-members-list" class="batch-members-list"></div><div class="empty-state compact" id="batch-members-empty" hidden><strong>No students in this batch</strong><p>Add students by their IDs above.</p></div>
+              <div class="table-heading batch-roster-heading"><div><h3>Batch roster</h3><p id="batch-member-count">0 students</p></div><div class="batch-export-actions" aria-label="Export selected batch roster"><button class="button outline" id="export-batch-excel" type="button">Excel (.xlsx)</button><button class="button outline" id="export-batch-csv" type="button">CSV</button><button class="button outline" id="export-batch-json" type="button">JSON</button></div></div><div id="batch-members-list" class="batch-members-list"></div><div class="empty-state compact" id="batch-members-empty" hidden><strong>No students in this batch</strong><p>Add students by their IDs above.</p></div>
             </article><div class="panel batch-empty-detail" id="batch-empty-detail" hidden><strong>Select or create a batch</strong><p>Your batch details and student roster will appear here.</p></div>
           </div>
         </section>

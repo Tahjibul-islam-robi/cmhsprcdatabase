@@ -8,6 +8,7 @@ const TABLE_FIELDS = [
   ["guardians_name", "Guardian name"], ["relationship_to_student", "Relationship to student"],
   ["guardians_contact_number", "Guardian phone"]
 ];
+const BATCH_EXPORT_FIELDS = [["batch_number", "Batch number"], ["batch_name", "Batch name"], ...TABLE_FIELDS];
 const CORE_FIELDS = ["full_name", "class", "section", "roll"];
 const LEGACY_ATTENDANCE_TITLE = "Imported legacy attendance";
 const state = { client: null, userId: "", students: [], batches: [], memberships: [], sessions: [], attendance: [], page: "overview",
@@ -583,6 +584,107 @@ function downloadFile(name, content, type) {
   const blob = new Blob([content], { type }), url = URL.createObjectURL(blob), anchor = document.createElement("a");
   anchor.href = url; anchor.download = name; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+function batchExportSnapshot() {
+  const batch = state.batches.find((item) => item.id === state.selectedBatchId);
+  if (!batch) { showToast("Select a batch before exporting its roster.", "error"); return null; }
+  const memberIds = new Set(state.memberships.filter((membership) => membership.batch_id === batch.id).map((membership) => membership.student_id));
+  const students = sortByStudentId(state.students.filter((student) => memberIds.has(student.student_id)));
+  if (!students.length) { showToast("This batch has no students to export.", "error"); return null; }
+  if (!window.confirm("Export " + students.length + " student records for " + batch.name + "? The file includes private contact and address details. Save it only on a private device.")) return null;
+  const rows = students.map((student) => ({
+    batch_number: String(batch.batch_number), batch_name: batch.name,
+    ...Object.fromEntries(TABLE_FIELDS.map(([key]) => [key, student[key] == null ? "" : String(student[key])]))
+  }));
+  return { batch, rows };
+}
+function batchExportFilename(batch, extension) {
+  const slug = String(batch.name || "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "batch";
+  return "batch-" + batch.batch_number + "-" + slug + "-" + new Date().toISOString().slice(0, 10) + "." + extension;
+}
+function batchCsvEscape(value) {
+  let text = value == null ? "" : String(value);
+  if (/^[\t\r=+\-@]/.test(text)) text = "'" + text;
+  return '"' + text.replaceAll('"', '""') + '"';
+}
+function xmlEscape(value) {
+  return String(value == null ? "" : value).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+}
+function spreadsheetColumn(index) {
+  let name = "";
+  for (let number = index + 1; number; number = Math.floor((number - 1) / 26)) name = String.fromCharCode(65 + ((number - 1) % 26)) + name;
+  return name;
+}
+function spreadsheetXml(rows) {
+  const values = [BATCH_EXPORT_FIELDS.map(([, label]) => label), ...rows.map((row) => BATCH_EXPORT_FIELDS.map(([key]) => row[key]))];
+  const sheetRows = values.map((row, rowIndex) => "<row r=\"" + (rowIndex + 1) + "\">" + row.map((value, columnIndex) =>
+    "<c r=\"" + spreadsheetColumn(columnIndex) + (rowIndex + 1) + "\" t=\"inlineStr\"><is><t xml:space=\"preserve\">" + xmlEscape(value) + "</t></is></c>").join("") + "</row>").join("");
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' + sheetRows + "</sheetData></worksheet>";
+}
+function zipCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function concatenateBytes(chunks) {
+  const result = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+  let offset = 0;
+  chunks.forEach((chunk) => { result.set(chunk, offset); offset += chunk.length; });
+  return result;
+}
+function makeXlsxBlob(rows) {
+  const encoder = new TextEncoder(), files = [
+    ["[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
+    ["_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ["xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Batch roster" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+    ["xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'],
+    ["xl/worksheets/sheet1.xml", spreadsheetXml(rows)]
+  ];
+  const localParts = [], centralParts = [];
+  let localOffset = 0;
+  const now = new Date(), dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+  const dosDate = ((Math.max(1980, now.getFullYear()) - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  files.forEach(([filename, contents]) => {
+    const name = encoder.encode(filename), data = encoder.encode(contents), crc = zipCrc32(data);
+    const local = new Uint8Array(30 + name.length + data.length), localView = new DataView(local.buffer);
+    localView.setUint32(0, 0x04034b50, true); localView.setUint16(4, 20, true); localView.setUint16(6, 0, true); localView.setUint16(8, 0, true);
+    localView.setUint16(10, dosTime, true); localView.setUint16(12, dosDate, true); localView.setUint32(14, crc, true);
+    localView.setUint32(18, data.length, true); localView.setUint32(22, data.length, true); localView.setUint16(26, name.length, true); localView.setUint16(28, 0, true);
+    local.set(name, 30); local.set(data, 30 + name.length); localParts.push(local);
+    const central = new Uint8Array(46 + name.length), centralView = new DataView(central.buffer);
+    centralView.setUint32(0, 0x02014b50, true); centralView.setUint16(4, 20, true); centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0, true); centralView.setUint16(10, 0, true); centralView.setUint16(12, dosTime, true); centralView.setUint16(14, dosDate, true);
+    centralView.setUint32(16, crc, true); centralView.setUint32(20, data.length, true); centralView.setUint32(24, data.length, true);
+    centralView.setUint16(28, name.length, true); centralView.setUint16(30, 0, true); centralView.setUint16(32, 0, true);
+    centralView.setUint16(34, 0, true); centralView.setUint16(36, 0, true); centralView.setUint32(38, 0, true); centralView.setUint32(42, localOffset, true);
+    central.set(name, 46); centralParts.push(central); localOffset += local.length;
+  });
+  const centralDirectory = concatenateBytes(centralParts), end = new Uint8Array(22), endView = new DataView(end.buffer);
+  endView.setUint32(0, 0x06054b50, true); endView.setUint16(4, 0, true); endView.setUint16(6, 0, true);
+  endView.setUint16(8, files.length, true); endView.setUint16(10, files.length, true); endView.setUint32(12, centralDirectory.length, true);
+  endView.setUint32(16, localOffset, true); endView.setUint16(20, 0, true);
+  return new Blob([concatenateBytes([...localParts, centralDirectory, end])], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+function exportBatchRoster(format) {
+  const snapshot = batchExportSnapshot(); if (!snapshot) return;
+  const filename = batchExportFilename(snapshot.batch, format === "excel" ? "xlsx" : format);
+  if (format === "csv") {
+    const lines = [BATCH_EXPORT_FIELDS.map(([, label]) => batchCsvEscape(label)).join(",")]
+      .concat(snapshot.rows.map((row) => BATCH_EXPORT_FIELDS.map(([key]) => batchCsvEscape(row[key])).join(",")));
+    downloadFile(filename, "\uFEFF" + lines.join("\r\n"), "text/csv;charset=utf-8");
+  } else if (format === "json") {
+    const data = { format: "club-batch-roster", version: 1, exported_at: new Date().toISOString(), batch: { batch_number: snapshot.batch.batch_number, name: snapshot.batch.name, description: snapshot.batch.description || "" }, students: snapshot.rows };
+    downloadFile(filename, JSON.stringify(data, null, 2), "application/json;charset=utf-8");
+  } else {
+    downloadFile(filename, makeXlsxBlob(snapshot.rows), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  }
+}
+$("#export-batch-excel").addEventListener("click", () => exportBatchRoster("excel"));
+$("#export-batch-csv").addEventListener("click", () => exportBatchRoster("csv"));
+$("#export-batch-json").addEventListener("click", () => exportBatchRoster("json"));
 $("#export-csv").addEventListener("click", () => {
   const rows = state.filteredStudents;
   if (!rows.length) { showToast("There are no filtered records to export.", "error"); return; }
