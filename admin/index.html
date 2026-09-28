@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f172a"><meta name="description" content="Private student records and club attendance administration.">
+  <title>Club Records | Admin</title><link rel="stylesheet" href="./styles.css"><script src="./config.js"></script>
+</head>
+<body>
+  <div class="login-wrap" id="login-view"><section class="login-card">
+    <div class="brand-lockup"><div class="brand-mark">C</div><div><strong>Club records</strong><span>Administrator access</span></div></div>
+    <div class="login-copy"><p class="eyebrow">PRIVATE ADMIN AREA</p><h1>Sign in to continue</h1><p>Student records are available only after an administrator signs in.</p></div>
+    <form id="login-form" class="stack-form"><label>Email address<input id="login-email" type="email" autocomplete="username" required></label><label>Password<input id="login-password" type="password" autocomplete="current-password" required></label><button class="button primary full" type="submit" id="login-button">Sign in</button></form>
+    <p class="inline-error" id="login-error" role="alert" hidden></p><p class="login-footnote" id="config-hint">Database connection is not configured yet. See the setup guide included with this site.</p><p class="login-footnote">Do not use this page to share student data publicly.</p>
+  </section></div>
+  <div class="app-shell" id="admin-app" hidden>
+    <aside class="sidebar">
+      <div class="brand-lockup sidebar-brand"><div class="brand-mark">C</div><div><strong>Club records</strong><span>Student administration</span></div></div>
+      <div class="side-caption">WORKSPACE</div>
+      <nav class="side-nav" aria-label="Main navigation">
+        <button class="nav-item active" type="button" data-page="overview"><span class="nav-icon">◫</span> Overview</button>
+        <button class="nav-item" type="button" data-page="students"><span class="nav-icon">◎</span> Students</button>
+        <button class="nav-item" type="button" data-page="attendance"><span class="nav-icon">✓</span> Attendance</button>
+        <button class="nav-item" type="button" data-page="reports"><span class="nav-icon">▤</span> Reports</button>
+        <button class="nav-item" type="button" data-page="data"><span class="nav-icon">⌕</span> Data quality</button>
+        <button class="nav-item" type="button" data-page="backup"><span class="nav-icon">⇅</span> Import & backup</button>
+      </nav>
+      <div class="sidebar-bottom"><div class="privacy-note"><span class="privacy-dot"></span><div><strong>Private records</strong><small>Admin sign-in required</small></div></div><button class="nav-item signout-button" id="signout-button" type="button"><span class="nav-icon">↪</span> Sign out</button></div>
+    </aside>
+    <main class="main-area">
+      <header class="topbar"><div class="mobile-brand"><div class="brand-mark">C</div><strong>Club records</strong></div><div class="topbar-title"><p class="eyebrow">STUDENT DATABASE</p><h1 id="page-title">Overview</h1></div><div class="topbar-right"><span class="connection-pill"><i></i> Connected</span><span class="user-email" id="user-email"></span></div></header>
+      <div class="page-content">
+        <section class="page-section" data-section="overview">
+          <div class="welcome-row"><div><h2>Your club at a glance</h2><p>Student counts and record checks from the private database.</p></div><button class="button primary" type="button" data-open-add>＋ Add student</button></div>
+          <div class="stat-grid">
+            <article class="stat-card"><span class="stat-label">Students</span><strong id="stat-students">—</strong><span class="stat-foot">Records in database</span><span class="stat-icon violet">◎</span></article>
+            <article class="stat-card"><span class="stat-label">Classes</span><strong id="stat-classes">—</strong><span class="stat-foot">Distinct class groups</span><span class="stat-icon blue">▦</span></article>
+            <article class="stat-card"><span class="stat-label">Sections</span><strong id="stat-sections">—</strong><span class="stat-foot">Distinct class sections</span><span class="stat-icon green">▤</span></article>
+            <article class="stat-card"><span class="stat-label">Meetings</span><strong id="stat-meetings">—</strong><span class="stat-foot">Attendance sessions recorded</span><span class="stat-icon amber">✓</span></article>
+          </div>
+          <div class="dashboard-grid">
+            <article class="panel"><div class="panel-heading"><div><h3>Students by class</h3><p>Counts update from your current records.</p></div><button class="text-button" type="button" data-go="students">Open directory →</button></div><div id="class-breakdown" class="bar-list"></div></article>
+            <article class="panel"><div class="panel-heading"><div><h3>Record check</h3><p>Fields that may need review.</p></div><button class="text-button" type="button" data-go="data">Review data →</button></div><div id="overview-quality" class="quality-summary"></div></article>
+          </div>
+          <div class="dashboard-grid lower-grid">
+            <article class="panel"><div class="panel-heading"><div><h3>Recent attendance</h3><p>Latest club meeting records.</p></div><button class="text-button" type="button" data-go="attendance">Open attendance →</button></div><div id="recent-sessions" class="session-list"></div></article>
+            <article class="panel privacy-panel"><div class="privacy-panel-icon">⌑</div><div><h3>Keep student data private</h3><p>Only commit website code to GitHub. Never add student JSON, exported records, passwords, or a Supabase service-role key to the repository.</p></div></article>
+          </div>
+        </section>
+        <section class="page-section" data-section="students" hidden>
+          <div class="section-intro"><div><h2>Student directory</h2><p>Search the full record or narrow the list by class, section, or ID range.</p></div><button class="button primary" type="button" data-open-add>＋ Add student</button></div>
+          <div class="panel filters-panel"><div class="search-row"><label class="search-box"><span>⌕</span><input id="student-search" type="search" placeholder="Search name, ID, phone, email, address…"></label><button class="button outline" id="clear-filters" type="button">Clear filters</button></div>
+            <div class="filter-row"><label>Class<select id="filter-class"><option value="">All classes</option></select></label><label>Section<select id="filter-section"><option value="">All sections</option></select></label><label>ID from<input id="filter-id-from" type="number" inputmode="numeric" placeholder="e.g. 1"></label><label>ID to<input id="filter-id-to" type="number" inputmode="numeric" placeholder="e.g. 50"></label><button class="button outline filter-apply" id="apply-filters" type="button">Apply</button></div>
+          </div>
+          <div class="panel table-panel"><div class="table-heading"><div><h3>Students</h3><p id="student-result-count">Loading records…</p></div><button class="button outline" id="export-csv" type="button">Export filtered CSV</button></div>
+            <div class="table-scroll"><table><thead><tr><th>Student ID</th><th>Full name</th><th>Class</th><th>Section</th><th>Roll</th><th>Actions</th></tr></thead><tbody id="student-table-body"></tbody></table></div>
+            <div class="empty-state" id="student-empty" hidden><span>⌕</span><strong>No matching students</strong><p>Try a different search or clear your filters.</p></div>
+          </div>
+        </section>
+        <section class="page-section" data-section="attendance" hidden>
+          <div class="section-intro"><div><h2>Meeting attendance</h2><p>Create a session, mark every student, and review attendance history.</p></div><button class="button primary" id="new-session-button" type="button">＋ New meeting</button></div>
+          <div class="attendance-layout"><article class="panel attendance-main"><div class="panel-heading attendance-tools"><div><h3>Take attendance</h3><p id="attendance-session-summary">Choose a meeting or create one.</p></div><label class="session-select-label">Meeting<select id="attendance-session-select"><option value="">No meetings yet</option></select></label></div>
+              <div class="attendance-counts" id="attendance-counts"></div><div class="table-scroll"><table><thead><tr><th>Student ID</th><th>Student</th><th>Class / section</th><th>Attendance</th></tr></thead><tbody id="attendance-table-body"></tbody></table></div>
+              <div class="attendance-save-row"><span id="attendance-mark-status">Select a status for each student.</span><button class="button primary" id="save-attendance" type="button" disabled>Save attendance</button></div>
+              <div class="empty-state compact" id="attendance-empty" hidden><strong>No student records yet</strong><p>Import or add students before taking attendance.</p></div>
+            </article><aside class="panel attendance-side"><div class="panel-heading"><div><h3>Meeting history</h3><p>Select a past meeting to review it.</p></div></div><div id="session-history" class="session-list"></div></aside></div>
+        </section>
+        <section class="page-section" data-section="reports" hidden>
+          <div class="section-intro"><div><h2>Attendance report</h2><p>Understand participation by student using recorded club meetings.</p></div><button class="button outline" id="export-attendance-csv" type="button">Export attendance CSV</button></div>
+          <div class="stat-grid report-stats"><article class="stat-card"><span class="stat-label">Meetings recorded</span><strong id="report-meetings">0</strong><span class="stat-foot">All dates in the database</span></article><article class="stat-card"><span class="stat-label">Marked check-ins</span><strong id="report-marked">0</strong><span class="stat-foot">Present, absent, and late entries</span></article><article class="stat-card"><span class="stat-label">Present</span><strong id="report-present">0</strong><span class="stat-foot">Across recorded meetings</span></article><article class="stat-card"><span class="stat-label">Late</span><strong id="report-late">0</strong><span class="stat-foot">Across recorded meetings</span></article></div>
+          <div class="panel table-panel"><div class="table-heading"><div><h3>Attendance by student</h3><p>Rate uses all meetings; an unmarked meeting counts as not attended.</p></div><label class="small-select">Class<select id="report-class-filter"><option value="">All classes</option></select></label></div><div class="table-scroll"><table><thead><tr><th>Student ID</th><th>Student</th><th>Class / section</th><th>Present</th><th>Late</th><th>Absent</th><th>Attendance rate</th></tr></thead><tbody id="report-table-body"></tbody></table></div><div class="empty-state compact" id="report-empty" hidden><strong>No attendance data yet</strong><p>Create a meeting and record attendance to see a report.</p></div></div>
+        </section>
+        <section class="page-section" data-section="data" hidden>
+          <div class="section-intro"><div><h2>Data quality</h2><p>Find incomplete contact records and roll numbers that may need review.</p></div><button class="button outline" id="refresh-data-check" type="button">Refresh check</button></div>
+          <div class="quality-cards" id="quality-cards"></div><div class="panel table-panel"><div class="table-heading"><div><h3>Items to review</h3><p>Checks are advisory. Existing records are never changed automatically.</p></div></div><div class="table-scroll"><table><thead><tr><th>Student ID</th><th>Student</th><th>Issue</th><th>Action</th></tr></thead><tbody id="quality-table-body"></tbody></table></div><div class="empty-state compact" id="quality-empty" hidden><strong>Everything looks complete</strong><p>No missing core information or duplicate class/section rolls were found.</p></div></div>
+        </section>
+        <section class="page-section" data-section="backup" hidden>
+          <div class="section-intro"><div><h2>Import & backup</h2><p>Move the current JSON records in, or keep a private encrypted copy.</p></div></div>
+          <div class="backup-grid">
+            <article class="panel import-panel"><div class="backup-icon blue">⇧</div><h3>Import student JSON</h3><p>Select the existing students.json file. The preview checks IDs and fields before anything is saved.</p><input id="json-file" class="file-input" type="file" accept=".json,application/json"><label class="button outline file-button" for="json-file">Choose JSON file</label><div id="import-preview" class="import-preview" hidden></div><button class="button primary full" id="apply-import" type="button" disabled>Import records</button><p class="helper-text">Existing student values are kept; the import fills only blank fields. Club status and area-of-interest fields are not imported.</p></article>
+            <article class="panel backup-panel"><div class="backup-icon green">⇩</div><h3>Encrypted backup</h3><p>Download a passphrase-protected backup of student and attendance data to your own device.</p><button class="button primary full" id="download-backup" type="button">Create encrypted backup</button><div class="divider"></div><label class="button outline file-button" for="backup-file">Choose backup to restore</label><input id="backup-file" class="file-input" type="file" accept=".clubbackup,.json,application/json"><p class="helper-text">Restore merges records by ID. It does not erase records absent from the backup. Keep the passphrase somewhere safe.</p></article>
+          </div>
+          <article class="panel privacy-panel full-width-note"><div class="privacy-panel-icon">⌑</div><div><h3>Free plan reminder</h3><p>Supabase Free may pause a project after a week without activity and does not provide automatic database backups. Download encrypted backups regularly and keep the file outside GitHub.</p></div></article>
+        </section>
+      </div>
+    </main>
+  </div>
+  <dialog id="student-dialog" class="modal"><form id="student-form" method="dialog"><div class="modal-head"><div><p class="eyebrow">STUDENT RECORD</p><h2 id="student-dialog-title">Add student</h2></div><button class="icon-button" type="button" data-close-dialog="student-dialog" aria-label="Close">×</button></div>
+    <div class="form-grid"><label>Student ID<input name="student_id" id="form-student-id" required maxlength="32" autocomplete="off"></label><label>Full name<input name="full_name" required maxlength="160" autocomplete="name"></label><label>Class<input name="class" maxlength="80"></label><label>Section<input name="section" maxlength="80"></label><label>Roll number<input name="roll" type="number" min="0" step="1"></label><label>Date of birth<input name="date_of_birth" type="date"></label><label>Gender<input name="gender" maxlength="80"></label><label>Student phone<input name="student_contact_number" type="tel" maxlength="80" autocomplete="tel"></label><label>Email address<input name="email_address" type="email" maxlength="254" autocomplete="email"></label><label class="span-two">Home address<textarea name="home_address" rows="2" maxlength="500" autocomplete="street-address"></textarea></label><label>Guardian name<input name="guardians_name" maxlength="160"></label><label>Relationship to student<input name="relationship_to_student" maxlength="80"></label><label class="span-two">Guardian phone<input name="guardians_contact_number" type="tel" maxlength="80"></label></div>
+    <p class="inline-error" id="student-form-error" role="alert" hidden></p><div class="modal-actions"><button class="button outline" type="button" data-close-dialog="student-dialog">Cancel</button><button class="button primary" id="save-student" type="submit">Save student</button></div>
+  </form></dialog>
+  <dialog id="profile-dialog" class="modal profile-modal"><div class="modal-head"><div><p class="eyebrow">STUDENT PROFILE</p><h2 id="profile-title">Student</h2></div><button class="icon-button" type="button" data-close-dialog="profile-dialog" aria-label="Close">×</button></div><div id="profile-content" class="profile-content"></div><div class="modal-actions profile-actions"><button class="button danger-outline" id="delete-student" type="button">Delete record</button><span class="actions-spacer"></span><button class="button outline" type="button" data-close-dialog="profile-dialog">Close</button><button class="button primary" id="edit-student" type="button">Edit record</button></div></dialog>
+  <dialog id="session-dialog" class="modal narrow-modal"><form id="session-form" method="dialog"><div class="modal-head"><div><p class="eyebrow">ATTENDANCE</p><h2>New meeting</h2></div><button class="icon-button" type="button" data-close-dialog="session-dialog" aria-label="Close">×</button></div><label>Meeting name<input name="title" required maxlength="120" placeholder="e.g. Weekly club meeting"></label><label>Meeting date<input name="session_date" type="date" required></label><p class="inline-error" id="session-form-error" role="alert" hidden></p><div class="modal-actions"><button class="button outline" type="button" data-close-dialog="session-dialog">Cancel</button><button class="button primary" type="submit" id="create-session">Create meeting</button></div></form></dialog>
+  <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

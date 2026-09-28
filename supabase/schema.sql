@@ -1,0 +1,79 @@
+-- Club Student Database schema for Supabase Free.
+-- Run this once in the Supabase SQL Editor.
+-- Intentionally excludes club status, interests, project teams, equipment,
+-- achievements, certificates, QR cards, and member task tracking.
+
+create extension if not exists pgcrypto;
+
+create table if not exists public.students (
+  student_id text primary key,
+  full_name text not null,
+  class text,
+  section text,
+  roll integer,
+  date_of_birth date,
+  gender text,
+  student_contact_number text,
+  email_address text,
+  home_address text,
+  guardians_name text,
+  relationship_to_student text,
+  guardians_contact_number text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists students_class_section_idx on public.students (class, section);
+create index if not exists students_full_name_idx on public.students (full_name);
+
+create table if not exists public.attendance_sessions (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  session_date date not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists attendance_sessions_date_idx on public.attendance_sessions (session_date desc);
+
+create table if not exists public.attendance_records (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.attendance_sessions(id) on delete cascade,
+  student_id text not null references public.students(student_id) on delete cascade,
+  status text not null check (status in ('Present', 'Absent', 'Late')),
+  created_at timestamptz not null default now(),
+  unique (session_id, student_id)
+);
+create index if not exists attendance_records_student_idx on public.attendance_records (student_id);
+create index if not exists attendance_records_session_idx on public.attendance_records (session_id);
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $body$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$body$;
+drop trigger if exists students_set_updated_at on public.students;
+create trigger students_set_updated_at before update on public.students
+for each row execute function public.set_updated_at();
+
+alter table public.students enable row level security;
+alter table public.attendance_sessions enable row level security;
+alter table public.attendance_records enable row level security;
+revoke all on public.students from anon, authenticated;
+revoke all on public.attendance_sessions from anon, authenticated;
+revoke all on public.attendance_records from anon, authenticated;
+grant select, insert, update, delete on public.students to authenticated;
+grant select, insert, update, delete on public.attendance_sessions to authenticated;
+grant select, insert, update, delete on public.attendance_records to authenticated;
+
+drop policy if exists "Admins manage students" on public.students;
+create policy "Admins manage students" on public.students for all to authenticated
+using (auth.uid() is not null) with check (auth.uid() is not null);
+drop policy if exists "Admins manage attendance sessions" on public.attendance_sessions;
+create policy "Admins manage attendance sessions" on public.attendance_sessions for all to authenticated
+using (auth.uid() is not null) with check (auth.uid() is not null);
+drop policy if exists "Admins manage attendance records" on public.attendance_records;
+create policy "Admins manage attendance records" on public.attendance_records for all to authenticated
+using (auth.uid() is not null) with check (auth.uid() is not null);
