@@ -10,8 +10,8 @@ const TABLE_FIELDS = [
 ];
 const CORE_FIELDS = ["full_name", "class", "section", "roll"];
 const LEGACY_ATTENDANCE_TITLE = "Imported legacy attendance";
-const state = { client: null, userId: "", students: [], sessions: [], attendance: [], page: "overview",
-  currentStudent: null, editingId: null, selectedSessionId: "", pendingImport: [], pendingImportAttendance: [], filteredStudents: [] };
+const state = { client: null, userId: "", students: [], batches: [], memberships: [], sessions: [], attendance: [], page: "overview",
+  currentStudent: null, editingId: null, selectedSessionId: "", selectedBatchId: "", pendingImport: [], pendingImportAttendance: [], filteredStudents: [] };
 const $ = (selector) => document.querySelector(selector);
 
 function escapeHtml(value) {
@@ -42,6 +42,10 @@ function safeTel(value) {
   const normalized = String(value || "").trim().replace(/[^0-9+]/g, "");
   return normalized && /\d/.test(normalized) ? "tel:" + normalized : "";
 }
+function phoneCell(value) {
+  const label = displayValue(value), tel = safeTel(value);
+  return tel ? '<a class="table-phone" href="' + escapeHtml(tel) + '">' + escapeHtml(label) + '</a>' : escapeHtml(label);
+}
 function dateLabel(value) {
   if (!value) return "—";
   const date = new Date(String(value).slice(0, 10) + "T00:00:00");
@@ -52,9 +56,10 @@ function setPage(page) {
   state.page = page;
   document.querySelectorAll(".page-section").forEach((section) => { section.hidden = section.dataset.section !== page; });
   document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === page));
-  const titles = { overview: "Overview", students: "Students", attendance: "Attendance", reports: "Reports", data: "Data quality", backup: "Import & backup" };
+  const titles = { overview: "Overview", students: "Students", batches: "Batches", attendance: "Attendance", reports: "Reports", data: "Data quality", backup: "Import & backup" };
   $("#page-title").textContent = titles[page] || "Overview";
   if (page === "students") renderStudents();
+  if (page === "batches") renderBatches();
   if (page === "attendance") renderAttendance();
   if (page === "reports") renderReports();
   if (page === "data") renderQuality();
@@ -74,15 +79,20 @@ function sortByStudentId(list) {
 async function loadData() {
   const results = await Promise.all([
     state.client.from("students").select("*").order("student_id"),
+    state.client.from("batches").select("*").order("batch_number"),
+    state.client.from("batch_students").select("*"),
     state.client.from("attendance_sessions").select("*").order("session_date", { ascending: false }),
     state.client.from("attendance_records").select("*")
   ]);
-  const names = ["students", "attendance sessions", "attendance"];
+  const names = ["students", "batches", "batch memberships", "attendance sessions", "attendance"];
   for (let i = 0; i < results.length; i += 1) if (results[i].error) throw new Error(names[i] + ": " + results[i].error.message);
   state.students = results[0].data || [];
-  state.sessions = results[1].data || [];
-  state.attendance = results[2].data || [];
-  renderDashboard(); renderStudents(); renderAttendance(); renderReports(); renderQuality();
+  state.batches = results[1].data || [];
+  state.memberships = results[2].data || [];
+  state.sessions = results[3].data || [];
+  state.attendance = results[4].data || [];
+  if (!state.batches.some((batch) => batch.id === state.selectedBatchId)) state.selectedBatchId = state.batches[0] ? state.batches[0].id : "";
+  renderDashboard(); renderStudents(); renderBatches(); renderAttendance(); renderReports(); renderQuality();
 }
 function showApp(user) {
   $("#login-view").hidden = true; $("#admin-app").hidden = false; $("#user-email").textContent = user.email || "Administrator";
@@ -91,7 +101,7 @@ function showApp(user) {
   loadData().catch((error) => showToast("Could not load private records. " + error.message, "error"));
 }
 function showLogin() {
-  state.userId = ""; state.students = []; state.sessions = []; state.attendance = []; state.filteredStudents = [];
+  state.userId = ""; state.students = []; state.batches = []; state.memberships = []; state.sessions = []; state.attendance = []; state.filteredStudents = []; state.selectedBatchId = "";
   $("#admin-app").hidden = true; $("#login-view").hidden = false;
 }
 function initialize() {
@@ -131,16 +141,52 @@ function fillSelect(select, values, allLabel) {
   distinctSorted(values).forEach((value) => { const option = document.createElement("option"); option.value = value; option.textContent = value; select.append(option); });
   if (Array.from(select.options).some((option) => option.value === current)) select.value = current;
 }
+function sortedBatches() { return state.batches.slice().sort((a, b) => Number(a.batch_number) - Number(b.batch_number)); }
+function batchLabelsForStudent(studentId) {
+  const ids = new Set(state.memberships.filter((membership) => membership.student_id === studentId).map((membership) => membership.batch_id));
+  return sortedBatches().filter((batch) => ids.has(batch.id)).map((batch) => "#" + batch.batch_number + " · " + batch.name).join(", ");
+}
+function batchNumbersForStudent(studentId) {
+  const ids = new Set(state.memberships.filter((membership) => membership.student_id === studentId).map((membership) => membership.batch_id));
+  return state.batches.filter((batch) => ids.has(batch.id)).map((batch) => Number(batch.batch_number));
+}
+function fillBatchNumberSelect(select, allLabel) {
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = '<option value="">' + escapeHtml(allLabel) + "</option>";
+  sortedBatches().forEach((batch) => {
+    const option = document.createElement("option"); option.value = String(batch.batch_number);
+    option.textContent = "#" + batch.batch_number + " · " + batch.name; select.append(option);
+  });
+  if (Array.from(select.options).some((option) => option.value === current)) select.value = current;
+}
+function fillBatchIdSelect(select) {
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = '<option value="">Choose a batch</option>';
+  sortedBatches().forEach((batch) => {
+    const option = document.createElement("option"); option.value = batch.id;
+    option.textContent = "#" + batch.batch_number + " · " + batch.name; select.append(option);
+  });
+  if (Array.from(select.options).some((option) => option.value === current)) select.value = current;
+  else if (select.options.length > 1) select.value = select.options[1].value;
+}
 function getFilteredStudents() {
   const query = $("#student-search").value.trim().toLocaleLowerCase(), classValue = $("#filter-class").value, sectionValue = $("#filter-section").value;
   const fromText = $("#filter-id-from").value.trim(), toText = $("#filter-id-to").value.trim();
   const from = fromText === "" ? null : Number(fromText), to = toText === "" ? null : Number(toText);
+  const batchFromText = $("#filter-batch-from").value, batchToText = $("#filter-batch-to").value;
+  const batchFrom = batchFromText === "" ? null : Number(batchFromText), batchTo = batchToText === "" ? null : Number(batchToText);
   const base = state.students.filter((student) => {
     if (classValue && String(student.class || "") !== classValue) return false;
     if (sectionValue && String(student.section || "") !== sectionValue) return false;
     if (from !== null || to !== null) {
       const number = idNumber(student.student_id);
       if (number === null || (from !== null && number < from) || (to !== null && number > to)) return false;
+    }
+    if (batchFrom !== null || batchTo !== null) {
+      if (batchFrom !== null && batchTo !== null && batchFrom > batchTo) return false;
+      if (!batchNumbersForStudent(student.student_id).some((number) => (batchFrom === null || number >= batchFrom) && (batchTo === null || number <= batchTo))) return false;
     }
     return true;
   });
@@ -152,7 +198,7 @@ function getFilteredStudents() {
   }
   return sortByStudentId(base.filter((student) => {
     const values = TABLE_FIELDS.map((field) => student[field[0]]);
-    const text = [student.student_id].concat(values).filter((value) => value != null).join(" ").toLocaleLowerCase();
+    const text = [student.student_id, batchLabelsForStudent(student.student_id)].concat(values).filter((value) => value != null).join(" ").toLocaleLowerCase();
     return text.includes(query);
   }));
 }
@@ -160,13 +206,14 @@ function renderStudents() {
   if (!$("#student-table-body")) return;
   fillSelect($("#filter-class"), state.students.map((student) => student.class), "All classes");
   fillSelect($("#filter-section"), state.students.map((student) => student.section), "All sections");
+  fillBatchNumberSelect($("#filter-batch-from"), "Any batch"); fillBatchNumberSelect($("#filter-batch-to"), "Any batch");
   const filtered = getFilteredStudents(); state.filteredStudents = filtered;
   $("#student-result-count").textContent = filtered.length + (filtered.length === 1 ? " record" : " records");
   $("#student-empty").hidden = filtered.length > 0;
   $("#student-table-body").innerHTML = filtered.map((student) =>
     "<tr><td><span class=\"id-badge\">" + escapeHtml(student.student_id) + "</span></td><td><strong>" + escapeHtml(displayValue(student.full_name)) +
     "</strong></td><td>" + escapeHtml(displayValue(student.class)) + "</td><td>" + escapeHtml(displayValue(student.section)) + "</td><td>" +
-    escapeHtml(displayValue(student.roll)) + '</td><td><div class="row-actions"><button class="table-action" type="button" data-action="view" data-id="' +
+    escapeHtml(displayValue(student.roll)) + "</td><td>" + escapeHtml(batchLabelsForStudent(student.student_id) || "—") + "</td><td>" + phoneCell(student.student_contact_number) + "</td><td>" + phoneCell(student.guardians_contact_number) + '</td><td><div class="row-actions"><button class="table-action" type="button" data-action="view" data-id="' +
     encodeURIComponent(student.student_id) + '">View</button><button class="table-action" type="button" data-action="edit" data-id="' +
     encodeURIComponent(student.student_id) + '">Edit</button></div></td></tr>').join("");
 }
@@ -174,7 +221,7 @@ $("#student-search").addEventListener("input", renderStudents);
 $("#apply-filters").addEventListener("click", renderStudents);
 $("#clear-filters").addEventListener("click", () => {
   $("#student-search").value = ""; $("#filter-class").value = ""; $("#filter-section").value = "";
-  $("#filter-id-from").value = ""; $("#filter-id-to").value = ""; renderStudents();
+  $("#filter-batch-from").value = ""; $("#filter-batch-to").value = ""; $("#filter-id-from").value = ""; $("#filter-id-to").value = ""; renderStudents();
 });
 $("#student-table-body").addEventListener("click", (event) => {
   const button = event.target.closest("[data-action]"); if (!button) return;
@@ -260,10 +307,16 @@ function getQualityIssues() {
 }
 function renderDashboard() {
   $("#stat-students").textContent = String(state.students.length);
-  $("#stat-classes").textContent = String(distinctSorted(state.students.map((student) => student.class)).length);
-  const sections = new Set(state.students.filter((student) => !emptyPlaceholder(student.class) && !emptyPlaceholder(student.section)).map((student) => String(student.class).trim() + " · " + String(student.section).trim()));
-  $("#stat-sections").textContent = String(sections.size); $("#stat-meetings").textContent = String(state.sessions.length);
-  $("#class-breakdown").innerHTML = state.students.length ? buildBreakdown(state.students, "class") : '<p class="helper-text">No student records yet.</p>';
+  $("#stat-batches").textContent = String(state.batches.length);
+  $("#stat-batch-members").textContent = String(state.memberships.length);
+  $("#stat-meetings").textContent = String(state.sessions.length);
+  const assigned = new Set(state.memberships.map((membership) => membership.student_id));
+  const batchCounts = sortedBatches().map((batch) => ({ label: "#" + batch.batch_number + " · " + batch.name, count: state.memberships.filter((membership) => membership.batch_id === batch.id).length }));
+  const unassigned = state.students.filter((student) => !assigned.has(student.student_id)).length;
+  if (unassigned) batchCounts.push({ label: "Not assigned", count: unassigned });
+  const max = Math.max(1, ...batchCounts.map((item) => item.count));
+  $("#batch-breakdown").innerHTML = batchCounts.length ? batchCounts.map((item) => '<div class="bar-item"><span class="bar-label" title="' + escapeHtml(item.label) + '">' + escapeHtml(item.label) +
+    '</span><div class="bar-track"><div class="bar-fill" style="width:' + Math.max(2, item.count / max * 100) + '%"></div></div><span class="bar-count">' + item.count + '</span></div>').join("") : '<p class="helper-text">Create batches and assign students to see the breakdown.</p>';
   const issues = getQualityIssues(), affected = new Set(issues.map((item) => item.student.student_id)).size;
   $("#overview-quality").innerHTML = '<div class="quality-summary-row' + (affected ? " warn" : "") + '"><span>Students needing review</span><strong>' + affected +
     '</strong></div><div class="quality-summary-row"><span>Missing core fields / roll conflicts</span><strong>' +
@@ -273,9 +326,98 @@ function renderDashboard() {
   const recent = state.sessions.slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date))).slice(0, 4);
   $("#recent-sessions").innerHTML = recent.length ? recent.map((session) => {
     const marked = state.attendance.filter((record) => record.session_id === session.id).length;
-    return '<div class="session-item"><div><strong>' + escapeHtml(session.title) + '</strong><small>' + escapeHtml(dateLabel(session.session_date)) + '</small></div><span class="session-count">' + marked + " marked</span></div>";
+    const batch = state.batches.find((item) => item.id === session.batch_id);
+    const label = batch ? "Batch #" + batch.batch_number + " · " + batch.name : "All students";
+    return '<div class="session-item"><div><strong>' + escapeHtml(session.title) + '</strong><small>' + escapeHtml(dateLabel(session.session_date) + " · " + label) + '</small></div><span class="session-count">' + marked + " marked</span></div>";
   }).join("") : '<p class="helper-text">No meeting attendance has been recorded.</p>';
 }
+function renderBatches() {
+  const list = $("#batch-list"); if (!list) return;
+  const batches = sortedBatches();
+  $("#batch-list-count").textContent = batches.length + (batches.length === 1 ? " batch" : " batches");
+  $("#batch-list-empty").hidden = batches.length > 0;
+  list.innerHTML = batches.map((batch) => {
+    const count = state.memberships.filter((membership) => membership.batch_id === batch.id).length;
+    return '<button class="batch-option' + (batch.id === state.selectedBatchId ? " selected" : "") + '" type="button" data-batch-id="' + escapeHtml(batch.id) + '"><span><strong>#' +
+      escapeHtml(batch.batch_number) + " · " + escapeHtml(batch.name) + '</strong><small>' + count + (count === 1 ? " student" : " students") + '</small></span><span class="batch-option-arrow">›</span></button>';
+  }).join("");
+  if (!batches.length) {
+    state.selectedBatchId = ""; $("#batch-detail-panel").hidden = true; $("#batch-empty-detail").hidden = false; return;
+  }
+  if (!batches.some((batch) => batch.id === state.selectedBatchId)) state.selectedBatchId = batches[0].id;
+  const batch = batches.find((item) => item.id === state.selectedBatchId), members = state.memberships.filter((membership) => membership.batch_id === batch.id);
+  const students = sortByStudentId(members.map((membership) => state.students.find((student) => student.student_id === membership.student_id)).filter(Boolean));
+  $("#batch-detail-panel").hidden = false; $("#batch-empty-detail").hidden = true;
+  $("#batch-detail-number").textContent = "BATCH #" + batch.batch_number;
+  $("#batch-detail-title").textContent = batch.name;
+  $("#batch-detail-description").textContent = batch.description || "";
+  $("#batch-name").value = batch.name; $("#batch-description").value = batch.description || "";
+  $("#batch-member-count").textContent = students.length + (students.length === 1 ? " student" : " students");
+  $("#batch-members-empty").hidden = students.length > 0;
+  $("#batch-members-list").innerHTML = students.map((student) => '<div class="batch-member-row"><div><strong>' + escapeHtml(student.full_name) + '</strong><small>ID ' + escapeHtml(student.student_id) +
+    " · Class " + escapeHtml(displayValue(student.class)) + " · Section " + escapeHtml(displayValue(student.section)) + '</small></div><button class="table-action remove-member" type="button" data-remove-member-id="' +
+    encodeURIComponent(student.student_id) + '">Remove</button></div>').join("");
+}
+$("#new-batch-button").addEventListener("click", () => {
+  $("#batch-form").reset(); $("#batch-form-error").hidden = true; openDialog("batch-dialog");
+});
+$("#batch-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); const values = new FormData(event.currentTarget);
+  const name = String(values.get("name") || "").trim(), description = String(values.get("description") || "").trim();
+  if (!name) { $("#batch-form-error").textContent = "Enter a batch name."; $("#batch-form-error").hidden = false; return; }
+  const button = $("#create-batch"); button.disabled = true;
+  const result = await state.client.from("batches").insert({ name, description: description || null }).select().single(); button.disabled = false;
+  if (result.error) { $("#batch-form-error").textContent = result.error.code === "23505" ? "That batch name already exists." : result.error.message; $("#batch-form-error").hidden = false; return; }
+  closeDialog("batch-dialog"); await loadData(); state.selectedBatchId = result.data.id; renderBatches(); showToast("Batch created. Add students by their IDs.", "success");
+});
+$("#batch-list").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-batch-id]"); if (!button) return;
+  state.selectedBatchId = button.dataset.batchId; renderBatches();
+});
+$("#batch-edit-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); const batch = state.batches.find((item) => item.id === state.selectedBatchId); if (!batch) return;
+  const name = $("#batch-name").value.trim(), description = $("#batch-description").value.trim();
+  if (!name) { showToast("Enter a batch name.", "error"); return; }
+  const button = $("#save-batch"); button.disabled = true;
+  const result = await state.client.from("batches").update({ name, description: description || null }).eq("id", batch.id); button.disabled = false;
+  if (result.error) { showToast(result.error.code === "23505" ? "That batch name already exists." : "Could not save batch: " + result.error.message, "error"); return; }
+  await loadData(); state.selectedBatchId = batch.id; renderBatches(); showToast("Batch details saved.", "success");
+});
+$("#delete-batch").addEventListener("click", async () => {
+  const batch = state.batches.find((item) => item.id === state.selectedBatchId); if (!batch) return;
+  const answer = window.prompt("This removes the batch and its membership links. Attendance history is preserved. Type the batch name to confirm:", "");
+  if (answer !== batch.name) { if (answer !== null) showToast("The batch name did not match. Nothing was deleted.", "error"); return; }
+  const { error } = await state.client.from("batches").delete().eq("id", batch.id);
+  if (error) { showToast("This batch could not be deleted. It may have attendance history that must be kept.", "error"); return; }
+  state.selectedBatchId = ""; await loadData(); showToast("Batch deleted. Student records are unchanged.", "success");
+});
+$("#batch-member-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); $("#batch-members-error").hidden = true;
+  const batch = state.batches.find((item) => item.id === state.selectedBatchId); if (!batch) return;
+  const ids = Array.from(new Set($("#batch-member-ids").value.split(/[\s,;]+/).map((id) => id.trim()).filter(Boolean)));
+  if (!ids.length) { $("#batch-members-error").textContent = "Enter at least one student ID."; $("#batch-members-error").hidden = false; return; }
+  const found = ids.filter((id) => state.students.some((student) => student.student_id === id));
+  const existing = new Set(state.memberships.filter((membership) => membership.batch_id === batch.id).map((membership) => membership.student_id));
+  const additions = found.filter((id) => !existing.has(id)).map((student_id) => ({ batch_id: batch.id, student_id }));
+  if (!additions.length) {
+    $("#batch-members-error").textContent = found.length ? "Those students are already in this batch." : "No matching student IDs were found. Use the exact IDs from the directory.";
+    $("#batch-members-error").hidden = false; return;
+  }
+  const button = $("#add-batch-members"); button.disabled = true;
+  const { error } = await state.client.from("batch_students").upsert(additions, { onConflict: "batch_id,student_id", ignoreDuplicates: true }); button.disabled = false;
+  if (error) { $("#batch-members-error").textContent = "Could not add students: " + error.message; $("#batch-members-error").hidden = false; return; }
+  $("#batch-member-ids").value = ""; await loadData(); state.selectedBatchId = batch.id; renderBatches();
+  const missing = ids.length - found.length; showToast(additions.length + " student(s) added to the batch" + (missing ? "; " + missing + " ID(s) not found." : "."), missing ? "error" : "success");
+});
+$("#batch-members-list").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-remove-member-id]"); if (!button) return;
+  const batchId = state.selectedBatchId, studentId = decodeURIComponent(button.dataset.removeMemberId);
+  if (!window.confirm("Remove this student from the batch? Their student record and saved attendance remain.")) return;
+  const { error } = await state.client.from("batch_students").delete().eq("batch_id", batchId).eq("student_id", studentId);
+  if (error) { showToast("Could not remove student: " + error.message, "error"); return; }
+  await loadData(); state.selectedBatchId = batchId; renderBatches(); showToast("Student removed from the batch.", "success");
+});
+
 function renderQuality() {
   if (!$("#quality-table-body")) return;
   const issues = getQualityIssues(), core = issues.filter((item) => item.issue.startsWith("Missing") || item.issue.startsWith("Roll number")).length;
@@ -295,27 +437,45 @@ $("#quality-table-body").addEventListener("click", (event) => {
 });
 $("#refresh-data-check").addEventListener("click", () => renderQuality());
 
+function studentsForSession(session) {
+  if (!session || !session.batch_id) return sortByStudentId(state.students);
+  const ids = new Set(state.memberships.filter((membership) => membership.batch_id === session.batch_id).map((membership) => membership.student_id));
+  return sortByStudentId(state.students.filter((student) => ids.has(student.student_id)));
+}
+function sessionBatchLabel(session) {
+  if (!session || !session.batch_id) return "All students";
+  const batch = state.batches.find((item) => item.id === session.batch_id);
+  return batch ? "Batch #" + batch.batch_number + " · " + batch.name : "Batch unavailable";
+}
 function renderAttendance() {
   const select = $("#attendance-session-select"), prior = state.selectedSessionId || select.value;
   select.innerHTML = "";
   if (!state.sessions.length) { select.innerHTML = '<option value="">No meetings yet</option>'; state.selectedSessionId = ""; }
   else {
     state.sessions.slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date))).forEach((session) => {
-      const option = document.createElement("option"); option.value = session.id; option.textContent = dateLabel(session.session_date) + " · " + session.title; select.append(option);
+      const option = document.createElement("option"); option.value = session.id;
+      option.textContent = dateLabel(session.session_date) + " · " + session.title + " · " + sessionBatchLabel(session); select.append(option);
     });
     state.selectedSessionId = state.sessions.some((session) => session.id === prior) ? prior : select.options[0].value; select.value = state.selectedSessionId;
   }
-  const session = state.sessions.find((item) => item.id === state.selectedSessionId);
-  $("#attendance-session-summary").textContent = session ? session.title + " · " + dateLabel(session.session_date) : "Choose a meeting or create one.";
-  $("#attendance-empty").hidden = state.students.length > 0;
+  const session = state.sessions.find((item) => item.id === state.selectedSessionId), roster = studentsForSession(session);
+  $("#attendance-session-summary").textContent = session ? session.title + " · " + dateLabel(session.session_date) + " · " + sessionBatchLabel(session) : "Choose a meeting or create one for a batch.";
+  $("#attendance-empty").hidden = true;
   const body = $("#attendance-table-body");
-  if (!session || !state.students.length) {
+  if (!session) {
     body.innerHTML = ""; $("#attendance-counts").innerHTML = ""; $("#save-attendance").disabled = true;
-    $("#attendance-mark-status").textContent = "Select a meeting and add students."; renderSessionHistory(); return;
+    $("#attendance-mark-status").textContent = state.students.length ? "Create a batch meeting to begin." : "Add students and create a batch first.";
+    renderSessionHistory(); return;
+  }
+  if (!roster.length) {
+    body.innerHTML = ""; $("#attendance-counts").innerHTML = ""; $("#save-attendance").disabled = true;
+    $("#attendance-empty").hidden = false;
+    $("#attendance-empty").innerHTML = session.batch_id ? '<strong>This batch has no students</strong><p>Add students from the Batches page before taking attendance.</p>' : '<strong>No student records yet</strong><p>Add or import students before taking attendance.</p>';
+    $("#attendance-mark-status").textContent = "There are no students to mark for this meeting."; renderSessionHistory(); return;
   }
   const saved = new Map(state.attendance.filter((record) => record.session_id === session.id).map((record) => [record.student_id, record.status]));
   const counts = { Present: 0, Absent: 0, Late: 0, "Not marked": 0 };
-  body.innerHTML = sortByStudentId(state.students).map((student) => {
+  body.innerHTML = roster.map((student) => {
     const status = saved.get(student.student_id) || ""; counts[status || "Not marked"] += 1;
     return "<tr><td><span class=\"id-badge\">" + escapeHtml(student.student_id) + "</span></td><td><strong>" + escapeHtml(displayValue(student.full_name)) +
       "</strong></td><td>" + escapeHtml(displayValue(student.class)) + " / " + escapeHtml(displayValue(student.section)) +
@@ -325,17 +485,17 @@ function renderAttendance() {
   }).join("");
   updateAttendanceCountsFromForm();
   const complete = counts["Not marked"] === 0;
-  $("#attendance-mark-status").textContent = complete ? "All students have a status." : counts["Not marked"] + " student(s) still need a status.";
+  $("#attendance-mark-status").textContent = complete ? "All students in this batch have a status." : counts["Not marked"] + " student(s) still need a status.";
   $("#save-attendance").disabled = !complete; renderSessionHistory();
 }
 function renderSessionHistory() {
   const history = state.sessions.slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)));
   $("#session-history").innerHTML = history.length ? history.map((session) => {
-    const marked = state.attendance.filter((record) => record.session_id === session.id).length;
+    const marked = state.attendance.filter((record) => record.session_id === session.id).length, rosterCount = studentsForSession(session).length;
     return '<div class="session-item' + (session.id === state.selectedSessionId ? " selected" : "") + '" tabindex="0" role="button" data-session-id="' +
-      escapeHtml(session.id) + '"><div><strong>' + escapeHtml(session.title) + '</strong><small>' + escapeHtml(dateLabel(session.session_date)) +
-      '</small></div><span class="session-count">' + marked + "/" + state.students.length + "</span></div>";
-  }).join("") : '<p class="helper-text">Your meetings will appear here.</p>';
+      escapeHtml(session.id) + '"><div><strong>' + escapeHtml(session.title) + '</strong><small>' + escapeHtml(dateLabel(session.session_date) + " · " + sessionBatchLabel(session)) +
+      '</small></div><span class="session-count">' + marked + "/" + rosterCount + "</span></div>";
+  }).join("") : '<p class="helper-text">Your batch meetings will appear here.</p>';
 }
 $("#attendance-session-select").addEventListener("change", (event) => { state.selectedSessionId = event.target.value; renderAttendance(); });
 $("#session-history").addEventListener("click", (event) => { const item = event.target.closest("[data-session-id]"); if (item) { state.selectedSessionId = item.dataset.sessionId; renderAttendance(); } });
@@ -358,15 +518,16 @@ function updateAttendanceCountsFromForm() {
     '<span class="attendance-chip unmarked">Not marked ' + counts["Not marked"] + "</span>";
 }
 $("#new-session-button").addEventListener("click", () => {
-  $("#session-form").reset(); $("#session-form-error").hidden = true;
+  if (!state.batches.length) { setPage("batches"); showToast("Create a batch before starting batch attendance.", "error"); return; }
+  $("#session-form").reset(); $("#session-form-error").hidden = true; fillBatchIdSelect($("#session-batch-id"));
   const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   $("#session-form").elements.namedItem("session_date").value = now.toISOString().slice(0, 10); openDialog("session-dialog");
 });
 $("#session-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const values = new FormData(event.currentTarget), title = String(values.get("title") || "").trim(), sessionDate = String(values.get("session_date") || "").trim();
+  const values = new FormData(event.currentTarget), title = String(values.get("title") || "").trim(), sessionDate = String(values.get("session_date") || "").trim(), batchId = String(values.get("batch_id") || "").trim();
   const button = $("#create-session"); button.disabled = true;
-  const { data, error } = await state.client.from("attendance_sessions").insert({ title, session_date: sessionDate }).select().single();
+  const { data, error } = await state.client.from("attendance_sessions").insert({ title, session_date: sessionDate, batch_id: batchId || null }).select().single();
   button.disabled = false;
   if (error) { $("#session-form-error").textContent = error.message; $("#session-form-error").hidden = false; return; }
   closeDialog("session-dialog"); await loadData(); state.selectedSessionId = data.id; renderAttendance(); showToast("Meeting created. Mark each student’s attendance.", "success");
@@ -382,21 +543,31 @@ $("#save-attendance").addEventListener("click", async () => {
   await loadData(); showToast("Attendance saved.", "success");
 });
 
-function attendanceSummary(studentId) {
-  const records = state.attendance.filter((record) => record.student_id === studentId);
+function attendanceSummary(studentId, batchFilter) {
+  const sessions = state.sessions.filter((session) => {
+    if (batchFilter) return session.batch_id === batchFilter;
+    if (!session.batch_id) return true;
+    return state.memberships.some((membership) => membership.batch_id === session.batch_id && membership.student_id === studentId);
+  });
+  const sessionIds = new Set(sessions.map((session) => session.id));
+  const records = state.attendance.filter((record) => record.student_id === studentId && sessionIds.has(record.session_id));
   const present = records.filter((record) => record.status === "Present").length, late = records.filter((record) => record.status === "Late").length;
-  const absent = records.filter((record) => record.status === "Absent").length, meetings = state.sessions.length;
+  const absent = records.filter((record) => record.status === "Absent").length, meetings = sessions.length;
   return { present, late, absent, meetings, rate: meetings ? Math.round((present + late) / meetings * 100) : 0 };
 }
 function renderReports() {
   fillSelect($("#report-class-filter"), state.students.map((student) => student.class), "All classes");
-  const classFilter = $("#report-class-filter").value, totalMarked = state.attendance.length;
+  fillBatchIdSelect($("#report-batch-filter"));
+  const classFilter = $("#report-class-filter").value, batchFilter = $("#report-batch-filter").value, totalMarked = state.attendance.length;
   $("#report-meetings").textContent = String(state.sessions.length); $("#report-marked").textContent = String(totalMarked);
   $("#report-present").textContent = String(state.attendance.filter((row) => row.status === "Present").length);
   $("#report-late").textContent = String(state.attendance.filter((row) => row.status === "Late").length);
-  const rows = sortByStudentId(state.students).filter((student) => !classFilter || String(student.class || "") === classFilter);
+  const rows = sortByStudentId(state.students).filter((student) => {
+    if (classFilter && String(student.class || "") !== classFilter) return false;
+    return !batchFilter || state.memberships.some((membership) => membership.batch_id === batchFilter && membership.student_id === student.student_id);
+  });
   $("#report-table-body").innerHTML = rows.map((student) => {
-    const summary = attendanceSummary(student.student_id);
+    const summary = attendanceSummary(student.student_id, batchFilter);
     return "<tr><td><span class=\"id-badge\">" + escapeHtml(student.student_id) + "</span></td><td><strong>" + escapeHtml(displayValue(student.full_name)) +
       "</strong></td><td>" + escapeHtml(displayValue(student.class)) + " / " + escapeHtml(displayValue(student.section)) + "</td><td>" +
       summary.present + "</td><td>" + summary.late + "</td><td>" + summary.absent + '</td><td><span class="session-count">' +
@@ -405,6 +576,7 @@ function renderReports() {
   $("#report-empty").hidden = state.sessions.length > 0 || state.students.length === 0;
 }
 $("#report-class-filter").addEventListener("change", renderReports);
+$("#report-batch-filter").addEventListener("change", renderReports);
 
 function csvEscape(value) { return '"' + (value == null ? "" : String(value)).replaceAll('"', '""') + '"'; }
 function downloadFile(name, content, type) {
@@ -415,17 +587,17 @@ $("#export-csv").addEventListener("click", () => {
   const rows = state.filteredStudents;
   if (!rows.length) { showToast("There are no filtered records to export.", "error"); return; }
   if (!window.confirm("This CSV includes student and guardian contact details. Save it only on a private device. Continue?")) return;
-  const csv = [TABLE_FIELDS.map((column) => csvEscape(column[1])).join(",")]
-    .concat(rows.map((student) => TABLE_FIELDS.map(([key]) => csvEscape(student[key])).join(","))).join("\r\n");
+  const csv = [TABLE_FIELDS.map((column) => csvEscape(column[1])).concat([csvEscape("Batches")]).join(",")]
+    .concat(rows.map((student) => TABLE_FIELDS.map(([key]) => csvEscape(student[key])).concat([csvEscape(batchLabelsForStudent(student.student_id))]).join(","))).join("\r\n");
   downloadFile("club-students-" + new Date().toISOString().slice(0, 10) + ".csv", csv, "text/csv;charset=utf-8");
 });
 $("#export-attendance-csv").addEventListener("click", () => {
   if (!state.attendance.length) { showToast("No attendance records to export.", "error"); return; }
   if (!window.confirm("This CSV contains student names and attendance. Save it only on a private device. Continue?")) return;
-  const headers = ["Meeting date", "Meeting name", "Student ID", "Full name", "Class", "Section", "Status"];
+  const headers = ["Meeting date", "Meeting name", "Batch", "Student ID", "Full name", "Class", "Section", "Status"];
   const sessions = new Map(state.sessions.map((session) => [session.id, session])), students = new Map(state.students.map((student) => [student.student_id, student]));
   const rows = state.attendance.map((record) => { const session = sessions.get(record.session_id) || {}, student = students.get(record.student_id) || {};
-    return [session.session_date, session.title, student.student_id, student.full_name, student.class, student.section, record.status]; });
+    return [session.session_date, session.title, sessionBatchLabel(session), student.student_id, student.full_name, student.class, student.section, record.status]; });
   const csv = [headers.map(csvEscape).join(",")].concat(rows.map((row) => row.map(csvEscape).join(","))).join("\r\n");
   downloadFile("club-attendance-" + new Date().toISOString().slice(0, 10) + ".csv", csv, "text/csv;charset=utf-8");
 });
@@ -557,11 +729,12 @@ $("#download-backup").addEventListener("click", async () => {
   if (passphrase.length < 12) { showToast("Use a passphrase of at least 12 characters.", "error"); return; }
   const confirmPassphrase = window.prompt("Type the backup passphrase again:");
   if (passphrase !== confirmPassphrase) { showToast("The passphrases did not match. No backup was created.", "error"); return; }
-  const payload = JSON.stringify({ format: "club-student-database", version: 1, created_at: new Date().toISOString(),
-    students: state.students, attendance_sessions: state.sessions, attendance_records: state.attendance });
+  const payload = JSON.stringify({ format: "club-student-database", version: 2, created_at: new Date().toISOString(),
+    students: state.students, batches: state.batches, batch_students: state.memberships,
+    attendance_sessions: state.sessions, attendance_records: state.attendance });
   const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveBackupKey(passphrase, salt, "encrypt"), ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(payload));
-  const envelope = { format: "club-encrypted-backup", version: 1, kdf: "PBKDF2-SHA-256", iterations: 310000,
+  const envelope = { format: "club-encrypted-backup", version: 2, kdf: "PBKDF2-SHA-256", iterations: 310000,
     salt: bytesToBase64(salt), iv: bytesToBase64(iv), ciphertext: bytesToBase64(ciphertext) };
   downloadFile("club-database-backup-" + new Date().toISOString().slice(0, 10) + ".clubbackup", JSON.stringify(envelope), "application/json");
   showToast("Encrypted backup downloaded. Store it somewhere private.", "success");
@@ -570,19 +743,23 @@ $("#backup-file").addEventListener("change", async (event) => {
   const file = event.target.files && event.target.files[0]; if (!file) return;
   try {
     const envelope = JSON.parse(await file.text());
-    if (envelope.format !== "club-encrypted-backup" || envelope.version !== 1) throw new Error("Unsupported backup file.");
+    if (envelope.format !== "club-encrypted-backup" || ![1, 2].includes(envelope.version)) throw new Error("Unsupported backup file.");
     const passphrase = window.prompt("Enter the passphrase for this backup."); if (passphrase === null) return;
     const key = await deriveBackupKey(passphrase, base64ToBytes(envelope.salt), "decrypt");
     const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(envelope.iv) }, key, base64ToBytes(envelope.ciphertext));
     const backup = JSON.parse(new TextDecoder().decode(plaintext));
-    if (backup.format !== "club-student-database" || !Array.isArray(backup.students) || !Array.isArray(backup.attendance_sessions) || !Array.isArray(backup.attendance_records)) throw new Error("Invalid backup.");
-    if (!window.confirm("Merge " + backup.students.length + " students and " + backup.attendance_sessions.length + " meetings into this database? Existing records are not deleted.")) return;
+    if (backup.format !== "club-student-database" || ![1, 2].includes(backup.version) || !Array.isArray(backup.students) || !Array.isArray(backup.attendance_sessions) || !Array.isArray(backup.attendance_records)) throw new Error("Invalid backup.");
+    const batches = Array.isArray(backup.batches) ? backup.batches : [], memberships = Array.isArray(backup.batch_students) ? backup.batch_students : [];
+    if (!window.confirm("Merge " + backup.students.length + " students, " + batches.length + " batches, and " + backup.attendance_sessions.length + " meetings into this database? Existing records are not deleted.")) return;
+    const cleanBatches = batches.map((batch) => ({ id: batch.id, name: batch.name, description: batch.description || null, created_at: batch.created_at }));
     const students = backup.students.map((row) => { const clean = {}; TABLE_FIELDS.forEach(([key]) => { clean[key] = row[key] == null ? null : row[key]; }); return clean; });
+    if (cleanBatches.length) { const result = await state.client.from("batches").upsert(cleanBatches, { onConflict: "id" }); if (result.error) throw result.error; }
     if (students.length) { const result = await state.client.from("students").upsert(students, { onConflict: "student_id" }); if (result.error) throw result.error; }
+    if (memberships.length) { const result = await state.client.from("batch_students").upsert(memberships.map((row) => ({ batch_id: row.batch_id, student_id: row.student_id, added_at: row.added_at })), { onConflict: "batch_id,student_id" }); if (result.error) throw result.error; }
     if (backup.attendance_sessions.length) { const result = await state.client.from("attendance_sessions").upsert(backup.attendance_sessions, { onConflict: "id" }); if (result.error) throw result.error; }
     if (backup.attendance_records.length) { const result = await state.client.from("attendance_records").upsert(backup.attendance_records, { onConflict: "session_id,student_id" }); if (result.error) throw result.error; }
-    await loadData(); showToast("Backup merged successfully.", "success");
-  } catch (_error) { showToast("Could not restore backup. Check the file and passphrase.", "error"); }
+    await loadData(); showToast("Backup merged successfully, including batches and memberships.", "success");
+  } catch (_error) { showToast("Could not restore backup. Check the file, passphrase, and Supabase schema update.", "error"); }
   finally { event.target.value = ""; }
 });
 initialize();
