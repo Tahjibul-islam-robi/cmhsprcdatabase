@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Loading...</title>
+  <script>
+    const path = window.location.pathname;
+
+    // Redirect to index.html while preserving the requested path
+    const base = "/cmhsprc/";
+    const code = path.startsWith(base)
+      ? path.slice(base.length).split("/")[0]
+      : "";
+
+    const target = base + "?member=" + encodeURIComponent(code);
+
+    window.location.replace(target);
+  </script>
+</head>
+<body>
+  Loading...
+</body>
+</html>
