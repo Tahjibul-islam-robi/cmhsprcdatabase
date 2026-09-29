@@ -7,6 +7,7 @@ const announceList = document.querySelector("#announcement-list");
 const materialList = document.querySelector("#material-list");
 const rosterBody = document.querySelector("#roster-body");
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+const ARTICLE_TAGS = new Set(["p", "div", "br", "h2", "h3", "strong", "b", "em", "i", "u", "ul", "ol", "li", "blockquote", "pre", "code", "a"]);
 let client;
 let batches = [];
 let posts = [];
@@ -16,6 +17,36 @@ function setError(message) { statusEl.textContent = message; }
 function dateLabel(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
+}
+function richContent(markup) {
+  const text = String(markup || "");
+  const parsed = new DOMParser().parseFromString(text, "text/html");
+  const safeDocument = document.implementation.createHTMLDocument("");
+  const copyNode = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) return safeDocument.createTextNode(node.nodeValue || "");
+    if (node.nodeType !== Node.ELEMENT_NODE) return safeDocument.createDocumentFragment();
+    const tag = node.tagName.toLowerCase();
+    if (["script", "style", "iframe", "object", "embed", "svg", "math"].includes(tag)) return safeDocument.createDocumentFragment();
+    const children = Array.from(node.childNodes).map(copyNode);
+    if (!ARTICLE_TAGS.has(tag)) { const fragment = safeDocument.createDocumentFragment(); children.forEach((child) => fragment.append(child)); return fragment; }
+    const element = safeDocument.createElement(tag);
+    if (tag === "a") {
+      try {
+        const link = new URL(node.getAttribute("href") || "", window.location.href);
+        if (["http:", "https:", "mailto:"].includes(link.protocol)) {
+          element.setAttribute("href", link.href); element.setAttribute("target", "_blank"); element.setAttribute("rel", "noopener noreferrer");
+        }
+      } catch { /* discard invalid link targets */ }
+    }
+    children.forEach((child) => element.append(child));
+    return element;
+  };
+  const container = safeDocument.createElement("div");
+  const hasMarkup = /<\/?(?:p|div|br|h2|h3|strong|b|em|i|u|ul|ol|li|blockquote|pre|code|a)\b/i.test(text);
+  if (!hasMarkup) {
+    const p = safeDocument.createElement("p"); p.textContent = text; container.append(p);
+  } else Array.from(parsed.body.childNodes).map(copyNode).forEach((child) => container.append(child));
+  return container.innerHTML;
 }
 function fileLink(item, label) {
   if (!item.object_path) return "";
@@ -44,8 +75,13 @@ function renderSelectedBatch() {
   const selectedPosts = posts.filter((item) => item.batch_id === batch.id);
   const announcements = selectedPosts.filter((item) => item.category === "announcement");
   const materials = selectedPosts.filter((item) => item.category === "material");
-  announceList.innerHTML = announcements.length ? announcements.map((item) => '<article class="post-card"><div class="post-meta"><span>' + esc(dateLabel(item.created_at)) + '</span><span>·</span><span>' + (item.object_path ? "PDF notice" : "Club update") + '</span></div><h3>' + esc(item.title) + '</h3>' + (item.body ? '<p class="post-body">' + esc(item.body) + '</p>' : "") + fileLink(item, item.file_name || "Read PDF notice") + '</article>').join("") : '<p class="empty">No announcements for this batch yet.</p>';
-  materialList.innerHTML = materials.length ? materials.map((item) => '<article class="material-card"><div><h3>' + esc(item.title) + '</h3>' + (item.body ? '<p>' + esc(item.body) + '</p>' : '<p>' + esc(item.file_name || "Learning resource") + '</p>') + '</div><a class="download" href="' + esc(client.storage.from("club-materials").getPublicUrl(item.object_path).data.publicUrl) + '" target="_blank" rel="noopener noreferrer" download>Open material ↗</a></article>').join("") : '<p class="empty">No materials for this batch yet.</p>';
+  announceList.innerHTML = announcements.length ? announcements.map((item) => '<article class="post-card"><div class="post-meta"><span>' + esc(dateLabel(item.created_at)) + '</span><span>·</span><span>' + (item.object_path ? "PDF notice" : "Club update") + '</span></div><h3>' + esc(item.title) + '</h3>' + (item.body ? '<div class="rich-content post-body">' + richContent(item.body) + '</div>' : "") + fileLink(item, item.file_name || "Read PDF notice") + '</article>').join("") : '<p class="empty">No announcements for this batch yet.</p>';
+  materialList.innerHTML = materials.length ? materials.map((item) => {
+    const downloadUrl = item.object_path ? client.storage.from("club-materials").getPublicUrl(item.object_path).data.publicUrl : "";
+    const content = item.body ? '<div class="rich-content">' + richContent(item.body) + '</div>' : (item.file_name ? '<p>' + esc(item.file_name) + '</p>' : "");
+    const attachment = downloadUrl ? '<a class="download" href="' + esc(downloadUrl) + '" target="_blank" rel="noopener noreferrer" download>Open material ↗</a>' : "";
+    return '<article class="material-card"><div class="material-copy"><h3>' + esc(item.title) + '</h3><div class="post-meta">' + esc(dateLabel(item.created_at)) + '</div>' + content + '</div>' + attachment + '</article>';
+  }).join("") : '<p class="empty">No materials for this batch yet.</p>';
   const students = batch.students.slice().sort((a, b) => a.student_id.localeCompare(b.student_id, undefined, { numeric: true, sensitivity: "base" }));
   document.querySelector("#roster-count").textContent = students.length + (students.length === 1 ? " student" : " students");
   rosterBody.innerHTML = students.length ? students.map((student) => '<tr><td>' + esc(student.student_id) + '</td><td>' + esc(student.full_name) + '</td></tr>').join("") : '<tr><td colspan="2" class="empty">No students have been added to this batch yet.</td></tr>';

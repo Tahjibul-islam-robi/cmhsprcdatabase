@@ -58,10 +58,34 @@ create table if not exists public.batch_resources (
     (object_path is null and file_name is null and content_type is null and file_size is null)
     or (object_path is not null and file_name is not null and content_type is not null and file_size is not null)
   ),
-  check (category <> 'material' or object_path is not null),
   check (category <> 'announcement' or content_type is null or content_type = 'application/pdf'),
   check (category <> 'announcement' or length(trim(body)) > 0 or object_path is not null)
 );
+-- Materials can now be written as full text articles; attachments are optional.
+do $migration$
+declare old_constraint record;
+begin
+  for old_constraint in
+    select conname from pg_constraint
+    where conrelid = 'public.batch_resources'::regclass
+      and contype = 'c'
+      and conname <> 'batch_resources_material_body_or_file_check'
+      and lower(pg_get_constraintdef(oid)) like '%category <> ''material''%'
+      and lower(pg_get_constraintdef(oid)) like '%object_path is not null%'
+  loop
+    execute format('alter table public.batch_resources drop constraint %I', old_constraint.conname);
+  end loop;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.batch_resources'::regclass
+      and conname = 'batch_resources_material_body_or_file_check'
+  ) then
+    alter table public.batch_resources
+      add constraint batch_resources_material_body_or_file_check
+      check (category <> 'material' or object_path is not null or length(trim(body)) > 0);
+  end if;
+end;
+$migration$;
 create index if not exists batch_resources_batch_created_idx on public.batch_resources (batch_id, created_at desc);
 create index if not exists batch_resources_category_idx on public.batch_resources (category);
 

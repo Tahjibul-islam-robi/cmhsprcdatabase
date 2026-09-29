@@ -29,6 +29,39 @@ function escapeHtml(value) {
   return String(value == null ? "" : value).replaceAll("&", "&amp;").replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
+const ARTICLE_TAGS = new Set(["p", "div", "br", "h2", "h3", "strong", "b", "em", "i", "u", "ul", "ol", "li", "blockquote", "pre", "code", "a"]);
+function sanitizeArticleHtml(markup) {
+  const parsed = new DOMParser().parseFromString(String(markup || ""), "text/html");
+  const safeDocument = document.implementation.createHTMLDocument("");
+  const copyNode = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) return safeDocument.createTextNode(node.nodeValue || "");
+    if (node.nodeType !== Node.ELEMENT_NODE) return safeDocument.createDocumentFragment();
+    const tag = node.tagName.toLowerCase();
+    if (["script", "style", "iframe", "object", "embed", "svg", "math"].includes(tag)) return safeDocument.createDocumentFragment();
+    const children = Array.from(node.childNodes).map(copyNode);
+    if (!ARTICLE_TAGS.has(tag)) { const fragment = safeDocument.createDocumentFragment(); children.forEach((child) => fragment.append(child)); return fragment; }
+    const element = safeDocument.createElement(tag);
+    if (tag === "a") {
+      const rawHref = node.getAttribute("href") || "";
+      try {
+        const link = new URL(rawHref, window.location.href);
+        if (["http:", "https:", "mailto:"].includes(link.protocol)) {
+          element.setAttribute("href", link.href); element.setAttribute("target", "_blank"); element.setAttribute("rel", "noopener noreferrer");
+        }
+      } catch { /* discard invalid link targets */ }
+    }
+    children.forEach((child) => element.append(child));
+    return element;
+  };
+  const container = safeDocument.createElement("div");
+  Array.from(parsed.body.childNodes).map(copyNode).forEach((child) => container.append(child));
+  return container.innerHTML;
+}
+function articleBodyForEditor(body) {
+  const text = String(body || "");
+  if (/<\/?(?:p|div|br|h2|h3|strong|b|em|i|u|ul|ol|li|blockquote|pre|code|a)\b/i.test(text)) return sanitizeArticleHtml(text);
+  return text.split(/\n/).map((line) => "<p>" + escapeHtml(line) + "</p>").join("");
+}
 function showToast(message, type) {
   const toast = document.createElement("div");
   toast.className = "toast" + (type ? " " + type : "");
@@ -392,21 +425,23 @@ function renderResources() {
     const batch = state.batches.find((item) => item.id === resource.batch_id);
     const fileUrl = resource.object_path ? publicResourceUrl(resource.object_path) : "";
     const attachment = fileUrl ? '<a class="resource-file-link" href="' + escapeHtml(fileUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(resource.file_name || "Open file") + "</a>" : "—";
-    const category = resource.category === "announcement" ? "Blog / notice" : "Material";
+    const category = resource.category === "announcement" ? "Blog / notice" : "Class material article";
     return "<tr><td>" + category + "</td><td>" + escapeHtml(batch ? "#" + batch.batch_number + " · " + batch.name : "Batch") + "</td><td>" + escapeHtml(resource.title) +
       "</td><td>" + attachment + "</td><td>" + escapeHtml(dateLabel(resource.created_at)) + '</td><td><div class="resource-row-actions"><button class="table-action" type="button" data-edit-resource="' + escapeHtml(resource.id) + '">Edit</button><button class="table-action delete-resource" type="button" data-delete-resource="' + escapeHtml(resource.id) + '">Delete</button></div></td></tr>';
   }).join("");
 }
 function updateResourceFormMode() {
   const announcement = $("#resource-category").value === "announcement";
-  $("#resource-body-label").textContent = announcement ? "Post text (or attach a PDF notice)" : "Material notes (optional)";
-  $("#resource-body").placeholder = announcement ? "Write the announcement or update for this batch." : "Describe what students will learn or find in this file.";
+  $("#resource-body-label").textContent = announcement ? "Post text (or attach a PDF notice)" : "Class material article";
+  $("#resource-body-editor").dataset.placeholder = announcement ? "Write the announcement or update for this batch. Add headings, lists, links, or code examples." : "Write the lesson directly here. Add headings, explanations, lists, links, quotes, and code examples.";
   $("#resource-file").accept = announcement ? ".pdf,application/pdf" : RESOURCE_ACCEPT;
-  $("#resource-file-help").textContent = announcement ? "Optional PDF notice. Your post and attachment are public." : "Upload a PDF, document, slide deck, spreadsheet, image, text file, or ZIP. Attachments are public.";
+  $("#resource-file-help").textContent = announcement ? "Optional PDF notice. Your post and attachment are public." : "Optional supporting file: PDF, document, slide deck, spreadsheet, image, text, or ZIP. Attachments are public.";
 }
 function resetResourceForm() {
   $("#resource-form").reset();
   $("#resource-id").value = "";
+  $("#resource-body-editor").innerHTML = "";
+  $("#resource-body").value = "";
   $("#resource-category").disabled = false;
   $("#resource-form-heading").textContent = "Publish to a batch";
   $("#save-resource").textContent = "Publish";
@@ -423,7 +458,8 @@ function beginResourceEdit(resourceId) {
   $("#resource-category").value = resource.category;
   $("#resource-category").disabled = true;
   $("#resource-title").value = resource.title;
-  $("#resource-body").value = resource.body || "";
+  $("#resource-body-editor").innerHTML = articleBodyForEditor(resource.body);
+  $("#resource-body").value = sanitizeArticleHtml($("#resource-body-editor").innerHTML);
   $("#resource-file").value = "";
   $("#resource-form-heading").textContent = "Edit published item";
   $("#save-resource").textContent = "Save changes";
@@ -437,6 +473,25 @@ function beginResourceEdit(resourceId) {
   updateResourceFormMode();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
+$("#resource-body-editor").addEventListener("input", () => {
+  $("#resource-body").value = sanitizeArticleHtml($("#resource-body-editor").innerHTML);
+});
+$(".article-toolbar").addEventListener("mousedown", (event) => {
+  if (event.target.closest("button")) event.preventDefault();
+});
+$(".article-toolbar").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-editor-command]"); if (!button) return;
+  $("#resource-body-editor").focus();
+  document.execCommand(button.dataset.editorCommand, false, button.dataset.editorValue || undefined);
+  $("#resource-body").value = sanitizeArticleHtml($("#resource-body-editor").innerHTML);
+});
+$("#insert-article-link").addEventListener("click", () => {
+  const href = window.prompt("Link URL (https://…)", "https://");
+  if (!href) return;
+  $("#resource-body-editor").focus();
+  document.execCommand("createLink", false, href.trim());
+  $("#resource-body").value = sanitizeArticleHtml($("#resource-body-editor").innerHTML);
+});
 function uploadFilename(name) {
   const cleaned = String(name || "file").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(-100);
@@ -460,13 +515,14 @@ $("#resource-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const errorEl = $("#resource-form-error"); errorEl.hidden = true;
   const batchId = $("#resource-batch-id").value, category = $("#resource-category").value;
-  const title = $("#resource-title").value.trim(), postBody = $("#resource-body").value.trim();
+  const title = $("#resource-title").value.trim(), postBody = sanitizeArticleHtml($("#resource-body-editor").innerHTML);
+  const bodyHasText = $("#resource-body-editor").innerText.trim().length > 0;
   const file = $("#resource-file").files && $("#resource-file").files[0];
   const editingId = $("#resource-id").value, existing = editingId ? state.resources.find((item) => item.id === editingId) : null;
   if (!batchId) { errorEl.textContent = "Create a batch before publishing a post or material."; errorEl.hidden = false; return; }
   if (!title) { errorEl.textContent = "Enter a title."; errorEl.hidden = false; return; }
-  if (category === "announcement" && !postBody && !file && !(existing && existing.object_path)) { errorEl.textContent = "Write the post or attach a PDF notice."; errorEl.hidden = false; return; }
-  if (category === "material" && !file && !(existing && existing.object_path)) { errorEl.textContent = "Choose a file for this material."; errorEl.hidden = false; return; }
+  if (category === "announcement" && !bodyHasText && !file && !(existing && existing.object_path)) { errorEl.textContent = "Write the post or attach a PDF notice."; errorEl.hidden = false; return; }
+  if (category === "material" && !bodyHasText && !file && !(existing && existing.object_path)) { errorEl.textContent = "Write the class material or attach a file."; errorEl.hidden = false; return; }
   let fileInfo;
   try { fileInfo = validateResourceFile(file, category); }
   catch (error) { errorEl.textContent = error.message; errorEl.hidden = false; return; }

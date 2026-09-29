@@ -9,7 +9,7 @@ This folder is the website package to upload to GitHub Pages. It contains the pu
 - Search across profile fields, class and section filters, and numeric ID ranges.
 - Add, edit, delete, and CSV export with confirmation for contact data.
 - Numbered batches with student membership managed by exact student IDs.
-- Public batch blog with announcements/notices and learning materials managed directly from the admin panel.
+- Public batch blog with announcements/notices and full class-material articles written and edited directly in Admin. Rich formatting supports headings, lists, links, quotes, and code blocks; file attachments are optional for article posts.
 - Public batch rosters show only full names and student IDs. Student contact details, addresses, and guardian information remain in protected tables and are not returned by the public portal.
 - Public files are stored in the `club-materials` bucket; announcement attachments must be PDF. Upload limit is 25 MB per file.
 - Export the selected batch roster as Excel (.xlsx), CSV, or JSON, with all student profile fields and a privacy confirmation.
@@ -24,7 +24,7 @@ Students can belong to one or more batches. Batch attendance meetings include on
 ## Supabase setup and updates (Free plan)
 
 1. Create a Supabase account and a new Free project.
-2. In the Supabase SQL Editor, run the contents of supabase/schema.sql. When updating an existing project, rerun the complete updated file; it creates the blog/materials table, narrow public read functions, and public file bucket while preserving existing student and attendance records.
+2. In the Supabase SQL Editor, run the contents of supabase/schema.sql. When updating an existing project, rerun the complete updated file; it allows text-only class-material articles and creates the narrow public read functions and public file bucket while preserving existing student and attendance records.
 3. In Supabase Auth settings, turn off public user sign-ups. Create your administrator login from the Supabase dashboard.
 4. Open admin/config.js and set the project URL and publishable key. The publishable key is intended for browser apps. Never put a service-role or secret key in this file.
 5. Keep the database tables protected by the row-level security policies in the schema.
