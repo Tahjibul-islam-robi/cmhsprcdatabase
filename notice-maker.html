@@ -23,6 +23,7 @@
       <label>Notice text <textarea id="notice-body" rows="10" placeholder="Write the notice here. New lines and paragraphs are preserved."></textarea></label>
       <fieldset class="grid-editor">
         <legend>Spreadsheet / grid (optional)</legend>
+        <label>Batch for this notice<select id="roster-batch"><option value="">Load batches after Admin sign-in</option></select></label>
         <label>Paste cells copied from Excel or Google Sheets<textarea id="grid-paste" rows="4" placeholder="Copy a cell range and paste it here. Keep columns separated by tabs."></textarea></label>
         <button class="secondary paste-button" id="insert-grid" type="button">Insert pasted grid</button>
         <div class="grid-tools"><label class="header-toggle"><input id="grid-first-row-header" type="checkbox" checked> First row is a heading</label><span class="grid-button-group"><button class="secondary" id="add-grid-row" type="button">＋ Row</button><button class="secondary" id="add-grid-column" type="button">＋ Column</button><button class="secondary" id="clear-grid" type="button">Clear grid</button></span></div>

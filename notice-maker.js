@@ -8,6 +8,7 @@ const fields = {
 let grid = [];
 let banglaNotice = false;
 let databaseClient;
+let availableBatches = [];
 const gridEditor = document.querySelector("#grid-editor-cells");
 const previewGrid = document.querySelector("#preview-grid");
 function displayDate(value) {
@@ -91,20 +92,38 @@ async function loadStudentRecords() {
     const { data: sessionData, error: sessionError } = await databaseClient.auth.getSession();
     if (sessionError) throw sessionError;
     if (!sessionData.session) throw new Error("Sign in to the Admin panel first, then return here and try again.");
-    const { data, error } = await databaseClient.from("students")
+    const batchSelect = document.querySelector("#roster-batch");
+    const { data: batchData, error: batchError } = await databaseClient.from("batches")
+      .select("id,batch_number,name").order("batch_number", { ascending: true });
+    if (batchError) throw batchError;
+    availableBatches = batchData || [];
+    const selectedBatchId = batchSelect.value;
+    batchSelect.replaceChildren(new Option("Choose a batch", ""));
+    availableBatches.forEach((batch) => batchSelect.add(new Option("Batch " + batch.batch_number + " · " + batch.name, batch.id)));
+    batchSelect.value = availableBatches.some((batch) => batch.id === selectedBatchId) ? selectedBatchId : (availableBatches[0]?.id || "");
+    if (!batchSelect.value) throw new Error("No batches were found. Create Batch 1 in the Admin panel first.");
+    const { data: memberships, error: membershipError } = await databaseClient.from("batch_students")
+      .select("student_id").eq("batch_id", batchSelect.value);
+    if (membershipError) throw membershipError;
+    const studentIds = (memberships || []).map((membership) => membership.student_id);
+    const { data, error } = studentIds.length ? await databaseClient.from("students")
       .select("student_id,full_name,section,class,roll,student_contact_number")
-      .order("student_id", { ascending: true });
+      .in("student_id", studentIds) : { data: [], error: null };
     if (error) throw error;
     const students = (data || []).slice().sort((a, b) => String(a.student_id || "").localeCompare(String(b.student_id || ""), undefined, { numeric: true, sensitivity: "base" }));
     grid = [["শিক্ষার্থীর নাম", "আইডি কোড", "শাখা", "শ্রেণি", "রোল", "মোবাইল নম্বর"], ...students.map((student) => [String(student.full_name || ""), String(student.student_id || ""), String(student.section || ""), String(student.class || ""), student.roll == null ? "" : String(student.roll), String(student.student_contact_number || "")])];
     document.querySelector("#grid-first-row-header").checked = true;
     renderGridEditor(); updatePreview();
-    status.textContent = students.length + "টি শিক্ষার্থীর তথ্য যোগ হয়েছে। সম্পূর্ণ নোটিশ প্রকাশ করলে ফোন নম্বরগুলোও সবার জন্য দৃশ্যমান হবে।";
+    const selectedBatch = availableBatches.find((batch) => batch.id === batchSelect.value);
+    status.textContent = "Batch " + selectedBatch.batch_number + " থেকে " + students.length + " জন শিক্ষার্থীর তথ্য যোগ হয়েছে। সম্পূর্ণ নোটিশ প্রকাশ করলে ফোন নম্বরগুলোও সবার জন্য দৃশ্যমান হবে।";
   } catch (error) {
     status.textContent = error.message || "Student records could not be loaded.";
   } finally { button.disabled = false; }
 }
 document.querySelector("#load-students").addEventListener("click", loadStudentRecords);
+document.querySelector("#roster-batch").addEventListener("change", () => {
+  if (document.querySelector("#roster-batch").value) loadStudentRecords();
+});
 document.querySelector("#insert-grid").addEventListener("click", () => {
   const pasted = document.querySelector("#grid-paste").value.trim();
   if (!pasted) return;
