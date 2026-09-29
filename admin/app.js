@@ -687,16 +687,22 @@ function renderAttendance() {
   const body = $("#attendance-table-body");
   if (!session) {
     body.innerHTML = ""; $("#attendance-counts").innerHTML = ""; $("#save-attendance").disabled = true;
+    $("#apply-attendance-ids").disabled = true; $("#attendance-present-ids").value = "";
+    $("#attendance-id-message").textContent = "Select or create a meeting first.";
     $("#attendance-mark-status").textContent = state.students.length ? "Create a batch meeting to begin." : "Add students and create a batch first.";
     renderSessionHistory(); return;
   }
   if (!roster.length) {
     body.innerHTML = ""; $("#attendance-counts").innerHTML = ""; $("#save-attendance").disabled = true;
+    $("#apply-attendance-ids").disabled = true; $("#attendance-present-ids").value = "";
+    $("#attendance-id-message").textContent = "This meeting has no students in its roster.";
     $("#attendance-empty").hidden = false;
     $("#attendance-empty").innerHTML = session.batch_id ? '<strong>This batch has no students</strong><p>Add students from the Batches page before taking attendance.</p>' : '<strong>No student records yet</strong><p>Add or import students before taking attendance.</p>';
     $("#attendance-mark-status").textContent = "There are no students to mark for this meeting."; renderSessionHistory(); return;
   }
   const saved = new Map(state.attendance.filter((record) => record.session_id === session.id).map((record) => [record.student_id, record.status]));
+  $("#apply-attendance-ids").disabled = false;
+  $("#attendance-id-message").textContent = "Review the roster after applying, then save attendance.";
   const counts = { Present: 0, Absent: 0, Late: 0, "Not marked": 0 };
   body.innerHTML = roster.map((student) => {
     const status = saved.get(student.student_id) || ""; counts[status || "Not marked"] += 1;
@@ -730,6 +736,24 @@ $("#attendance-table-body").addEventListener("change", () => {
   const statuses = Array.from(document.querySelectorAll("#attendance-table-body select")), missing = statuses.filter((select) => !select.value).length;
   $("#attendance-mark-status").textContent = missing ? missing + " student(s) still need a status." : "All students have a status.";
   $("#save-attendance").disabled = missing > 0 || statuses.length === 0; updateAttendanceCountsFromForm();
+});
+$("#apply-attendance-ids").addEventListener("click", () => {
+  const rawIds = $("#attendance-present-ids").value.trim();
+  const message = $("#attendance-id-message");
+  if (!rawIds) { message.textContent = "Enter at least one student ID. No attendance was changed."; return; }
+  const enteredIds = rawIds.split(/[\s,;]+/).filter(Boolean);
+  const rosterIds = new Set(Array.from(document.querySelectorAll("#attendance-table-body select"), (select) => decodeURIComponent(select.dataset.studentId)));
+  const unknown = Array.from(new Set(enteredIds.filter((id) => !rosterIds.has(id))));
+  if (unknown.length) { message.textContent = "IDs not in this meeting’s roster: " + unknown.join(", ") + ". Fix the list; no attendance was changed."; return; }
+  const presentIds = new Set(enteredIds);
+  document.querySelectorAll("#attendance-table-body select").forEach((select) => {
+    const id = decodeURIComponent(select.dataset.studentId);
+    select.value = presentIds.has(id) ? "Present" : "Absent";
+  });
+  updateAttendanceCountsFromForm();
+  $("#attendance-mark-status").textContent = "IDs applied: " + presentIds.size + " present; " + (rosterIds.size - presentIds.size) + " absent. Save to record these changes.";
+  $("#save-attendance").disabled = false;
+  message.textContent = "Applied to this meeting’s roster. Check the table, then select Save attendance.";
 });
 function updateAttendanceCountsFromForm() {
   const counts = { Present: 0, Absent: 0, Late: 0, "Not marked": 0 };
