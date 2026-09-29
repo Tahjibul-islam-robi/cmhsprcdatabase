@@ -1,163 +1,51 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#0b1020">
-<title>Club Rules & Regulations</title>
-<style>
-:root{--bg:#070b16;--card:rgba(17,24,39,.72);--line:rgba(255,255,255,.10);--text:#f8fafc;--muted:#aab4c7;--accent:#7c5cff;--accent2:#19c6ff}
-*{box-sizing:border-box}html{scroll-behavior:smooth}
-body{margin:0;min-height:100vh;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Bengali",sans-serif;background:radial-gradient(circle at 15% 10%,rgba(124,92,255,.20),transparent 30%),radial-gradient(circle at 85% 20%,rgba(25,198,255,.13),transparent 28%),linear-gradient(145deg,#060914,#0b1020 55%,#070b16)}
-body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:38px 38px}
-.wrap{width:min(920px,calc(100% - 32px));margin:auto;padding:22px 0 48px;position:relative}
-.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.member{display:inline-flex;align-items:center;gap:10px;padding:9px 13px;border:1px solid var(--line);background:rgba(255,255,255,.055);backdrop-filter:blur(14px);border-radius:13px;color:#dce4f5;font-size:13px;letter-spacing:.08em;font-weight:700;box-shadow:0 12px 35px rgba(0,0,0,.18)}
-.dot{width:7px;height:7px;border-radius:50%;background:#45e0a8;box-shadow:0 0 14px #45e0a8}
-.lang{display:flex;padding:4px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.05);backdrop-filter:blur(14px)}
-.lang button{background:transparent;box-shadow:none;padding:8px 12px;color:#9aa7bb;border-radius:9px;font-size:12px}
-.lang button.active{background:rgba(124,92,255,.22);color:white}
-.hero{text-align:center;padding:45px 0 32px}.logo{width:86px;height:86px;border-radius:24px;margin:0 auto 20px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 20px 55px rgba(89,76,255,.30);font-weight:900;font-size:27px;letter-spacing:-.08em}.logo span{filter:drop-shadow(0 2px 8px rgba(0,0,0,.3))}
-.kicker{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#94a3b8;font-weight:800}h1{font-size:clamp(34px,7vw,58px);line-height:1.02;margin:10px 0 13px;letter-spacing:-.055em}.subtitle{color:var(--muted);max-width:590px;margin:auto;line-height:1.7;font-size:15px}
-.card{border:1px solid var(--line);background:var(--card);backdrop-filter:blur(18px);border-radius:24px;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,.25);margin-top:18px}.section{padding:26px}.section+.section{border-top:1px solid var(--line)}.section-head{display:flex;align-items:center;gap:13px;margin-bottom:20px}.num{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(124,92,255,.14);color:#bcaeff;border:1px solid rgba(124,92,255,.25);font-size:12px;font-weight:800}h2{font-size:18px;margin:0;letter-spacing:-.02em}.rule{display:grid;grid-template-columns:34px 1fr;gap:14px;padding:16px 0;border-top:1px solid rgba(255,255,255,.065)}.rule:first-of-type{border-top:0}.rule-no{color:#71809a;font-size:12px;font-weight:800;padding-top:2px}.rule p{margin:0;color:#cbd5e1;line-height:1.7;font-size:14px}
-.ack{text-align:center;padding:34px 26px 30px;background:linear-gradient(135deg,rgba(124,92,255,.10),rgba(25,198,255,.055))}.ack h2{font-size:24px;margin-bottom:9px}.ack p{color:var(--muted);font-size:14px;line-height:1.65;max-width:560px;margin:0 auto 22px}label{display:flex;align-items:flex-start;gap:12px;text-align:left;max-width:560px;margin:0 auto 18px;padding:14px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.035);cursor:pointer}input{margin-top:3px;accent-color:var(--accent);width:17px;height:17px;flex:none}label span{font-size:13px;color:#cbd5e1;line-height:1.55}
-.ackbtn{border:0;border-radius:13px;padding:13px 21px;color:white;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--accent),#5b7cff);box-shadow:0 12px 30px rgba(100,80,255,.25);transition:.2s transform,.2s opacity}.ackbtn:hover{transform:translateY(-2px)}.ackbtn:disabled{opacity:.45;cursor:not-allowed;transform:none}.status{min-height:22px;margin-top:13px;font-size:13px;color:#67e8b0;font-weight:700}footer{text-align:center;color:#64748b;font-size:12px;padding-top:26px}
-@media(max-width:600px){.wrap{width:min(100% - 20px,920px);padding-top:15px}.hero{padding:38px 8px 28px}.logo{width:72px;height:72px;border-radius:20px;font-size:23px}h1{font-size:38px}.card{border-radius:19px}.section{padding:21px 18px}.rule{grid-template-columns:27px 1fr;gap:10px}.topbar{align-items:flex-start}}
-.logo img {width: 100%;height: 100%;object-fit: contain;border-radius: inherit;}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07111f">
+  <meta name="description" content="Public batch blog, student rosters, announcements, and learning materials from the Cumilla Modern High School Programming And Robotics Club.">
+  <title>CMHS Programming & Robotics Club</title>
+  <link rel="icon" href="./logo.png">
+  <link rel="stylesheet" href="./portal.css">
+  <script src="./admin/config.js"></script>
 </head>
 <body>
-<main class="wrap">
-  <div class="topbar">
-    <div class="member"><span class="dot"></span><span id="memberCode">MEMBER</span></div>
-    <div class="lang" aria-label="Language selector">
-      <button id="enBtn" class="active" onclick="setLanguage('en')">English</button>
-      <button id="bnBtn" onclick="setLanguage('bn')">বাংলা</button>
-    </div>
-  </div>
-
-  <header class="hero">
-    <div class="logo"><img src="logo.png" alt="Club Logo"></div>
-    <br>
-    <div class="kicker" data-en="Official Club Document" data-bn="ক্লাবের অফিসিয়াল নিয়মাবলি"></div>
-    <h1 data-en="Rules & Regulations" data-bn="নিয়ম ও বিধিমালা"></h1>
-    <p class="subtitle" data-en="Please read the following rules carefully. Every member is expected to maintain discipline, respect others, and uphold the standards of the club." data-bn="অনুগ্রহ করে নিচের নিয়মগুলো মনোযোগ দিয়ে পড়ো, প্রত্যেক সদস্যের শৃঙ্খলা বজায় রাখা, অন্যদের সম্মান করা এবং ক্লাবের মানদণ্ড অনুসরণ করা প্রত্যাশিত।"></p>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Club home"><img src="./logo.png" alt="Club logo"><span>Cumilla Modern High School<br><strong>Programming And Robotics Club</strong></span></a>
+    <nav><a href="./cmhsprc/">Club rules</a><a href="./admin/">Admin</a></nav>
   </header>
-
-  <section class="card">
-    <div class="section">
-      <div class="section-head"><div class="num">01</div><h2 data-en="Membership" data-bn="সদস্যপদ"></h2></div>
-      <div class="rule"><div class="rule-no">01</div><p data-en="Every member must complete the official registration process before participating as a registered club member." data-bn="নিবন্ধিত ক্লাব সদস্য হিসেবে কার্যক্রমে অংশগ্রহণের আগে প্রত্যেক সদস্যকে অফিসিয়াল রেজিস্ট্রেশন প্রক্রিয়া সম্পন্ন করতে হবে।"></p></div>
-      <div class="rule"><div class="rule-no">02</div><p data-en="Members are expected to provide accurate information during registration and keep their membership details up to date." data-bn="রেজিস্ট্রেশনের সময় সদস্যদের সঠিক তথ্য প্রদান করতে হবে এবং সদস্যপদের তথ্য হালনাগাদ রাখতে হবে।"></p></div>
-    </div>
-
-    <div class="section">
-      <div class="section-head"><div class="num">02</div><h2 data-en="Conduct & Discipline" data-bn="আচরণ ও শৃঙ্খলা"></h2></div>
-      <div class="rule"><div class="rule-no">01</div><p data-en="Members must behave respectfully toward teachers, club authorities, volunteers, and fellow members." data-bn="সদস্যদের শিক্ষক, ক্লাব কর্তৃপক্ষ, স্বেচ্ছাসেবক এবং অন্যান্য সদস্যদের প্রতি সম্মানজনক আচরণ করতে হবে।"></p></div>
-      <div class="rule"><div class="rule-no">02</div><p data-en="Harassment, bullying, abusive language, disruptive behavior, or any activity that damages the reputation of the club is strictly prohibited." data-bn="হয়রানি, বুলিং, অশালীন ভাষা, বিশৃঙ্খল আচরণ বা ক্লাবের সুনাম ক্ষুণ্ণ করে এমন যেকোনো কার্যক্রম কঠোরভাবে নিষিদ্ধ।"></p></div>
-      <div class="rule"><div class="rule-no">03</div><p data-en="Members must follow instructions given by the club authorities during meetings, workshops, contests, and other activities." data-bn="সভা, কর্মশালা, প্রতিযোগিতা এবং অন্যান্য কার্যক্রমের সময় ক্লাব কর্তৃপক্ষের নির্দেশনা মেনে চলতে হবে।"></p></div>
-    </div>
-
-    <div class="section">
-      <div class="section-head"><div class="num">03</div><h2 data-en="Club Activities" data-bn="ক্লাবের কার্যক্রম"></h2></div>
-      <div class="rule"><div class="rule-no">01</div><p data-en="Members should actively participate in club activities and maintain proper discipline during sessions and events." data-bn="সদস্যদের ক্লাবের কার্যক্রমে সক্রিয়ভাবে অংশগ্রহণ করতে হবে এবং সেশন ও ইভেন্টে যথাযথ শৃঙ্খলা বজায় রাখতে হবে।"></p></div>
-      <div class="rule"><div class="rule-no">02</div><p data-en="Club resources, equipment, rooms, and other property must be used responsibly and returned in proper condition." data-bn="ক্লাবের সম্পদ, সরঞ্জাম, কক্ষ এবং অন্যান্য সম্পত্তি দায়িত্বশীলভাবে ব্যবহার করতে হবে এবং যথাযথ অবস্থায় ফেরত দিতে হবে।"></p></div>
-    </div>
-    
-    <div class="section">
-  <div class="section-head">
-    <div class="num">04</div>
-    <h2 data-en="Money, Fund & ID Card" data-bn="অর্থ, তহবিল ও আইডি কার্ড"></h2>
-  </div>
-
-  <div class="rule">
-    <div class="rule-no">01</div>
-    <p data-en="A registration fee of 100 BDT must be paid during the official registration process."
-       data-bn="অফিসিয়াল রেজিস্ট্রেশনের সময় ১০০ টাকা রেজিস্ট্রেশন ফি প্রদান করতে হবে।"></p>
-  </div>
-
-  <div class="rule">
-    <div class="rule-no">02</div>
-    <p data-en="Once registration is completed and the registration fee is paid, the fee is non-refundable, even if the member later unregisters or leaves the club."
-       data-bn="রেজিস্ট্রেশন সম্পন্ন হওয়ার পর এবং ফি প্রদান করার পর, সদস্য পরবর্তীতে রেজিস্ট্রেশন বাতিল করলেও বা ক্লাব ছেড়ে দিলেও রেজিস্ট্রেশন ফি ফেরতযোগ্য নয়।"></p>
-  </div>
-
-  <div class="rule">
-    <div class="rule-no">03</div>
-    <p data-en="The club will maintain transparency regarding the use of collected funds. The funds will be managed independently by the club authorities and used responsibly for club-related purposes."
-       data-bn="সংগৃহীত অর্থ ব্যবহারের ক্ষেত্রে ক্লাব স্বচ্ছতা বজায় রাখবে। ক্লাব কর্তৃপক্ষ স্বাধীনভাবে তহবিল পরিচালনা করবে এবং ক্লাবের প্রয়োজনীয় কাজে তা দায়িত্বশীলভাবে ব্যবহার করবে।"></p>
-  </div>
-
-  <div class="rule">
-    <div class="rule-no">04</div>
-    <p data-en="Every registered member may receive an official club ID card. The ID card is personal to the registered member and must not be misused, shared, altered, or used to represent the club without authorization."
-       data-bn="প্রত্যেক নিবন্ধিত সদস্য একটি অফিসিয়াল ক্লাব আইডি কার্ড পেতে পারে। আইডি কার্ড শুধুমাত্র সংশ্লিষ্ট সদস্যের জন্য এবং এটি অপব্যবহার, অন্যকে দেওয়া, পরিবর্তন করা বা অনুমতি ছাড়া ক্লাবের প্রতিনিধিত্ব করার জন্য ব্যবহার করা যাবে না।"></p>
-  </div>
-
-  <div class="rule">
-    <div class="rule-no">05</div>
-    <p data-en="During classes, workshops, and official activities, members must remain within the designated class or activity area. Leaving the area requires permission from the responsible club authority."
-       data-bn="ক্লাস, কর্মশালা ও অফিসিয়াল কার্যক্রম চলাকালীন সদস্যদের নির্ধারিত ক্লাস বা কার্যক্রমের এলাকায় থাকতে হবে। এলাকা থেকে বাইরে যেতে হলে দায়িত্বপ্রাপ্ত ক্লাব কর্তৃপক্ষের অনুমতি নিতে হবে।"></p>
-  </div>
-
-  <div class="rule">
-    <div class="rule-no">06</div>
-    <p data-en="Members must listen to and follow reasonable instructions given by the responsible club authorities, especially during classes, events, workshops, and other official activities."
-       data-bn="বিশেষ করে ক্লাস, ইভেন্ট, কর্মশালা ও অন্যান্য অফিসিয়াল কার্যক্রমের সময় সদস্যদের দায়িত্বপ্রাপ্ত ক্লাব কর্তৃপক্ষের যুক্তিসঙ্গত নির্দেশনা মনোযোগ দিয়ে শুনতে ও অনুসরণ করতে হবে।"></p>
-  </div>
-</div>
-    <div class="section">
-      <div class="section-head"><div class="num">04</div><h2 data-en="Online Communication" data-bn="অনলাইন যোগাযোগ"></h2></div>
-      <div class="rule"><div class="rule-no">01</div><p data-en="Official club groups and servers should be used only for relevant club communication, announcements, learning, and collaboration." data-bn="ক্লাবের অফিসিয়াল গ্রুপ ও সার্ভার শুধুমাত্র প্রাসঙ্গিক ক্লাব যোগাযোগ, ঘোষণা, শেখা এবং সহযোগিতার জন্য ব্যবহার করতে হবে।"></p></div>
-      <div class="rule"><div class="rule-no">02</div><p data-en="Spam, irrelevant messages, inappropriate content, and unauthorized promotion are not permitted in official club platforms." data-bn="ক্লাবের অফিসিয়াল প্ল্যাটফর্মে স্প্যাম, অপ্রাসঙ্গিক বার্তা, অনুপযুক্ত কনটেন্ট এবং অনুমোদনহীন প্রচারণা অনুমোদিত নয়।"></p></div>
-    </div>
-
-    <div class="section">
-      <div class="section-head"><div class="num">05</div><h2 data-en="General Rules" data-bn="সাধারণ নিয়ম"></h2></div>
-      <div class="rule"><div class="rule-no">01</div><p data-en="The club authorities reserve the right to take appropriate action when a member violates these rules." data-bn="কোনো সদস্য এই নিয়মগুলো লঙ্ঘন করলে ক্লাব কর্তৃপক্ষ উপযুক্ত ব্যবস্থা নেওয়ার অধিকার সংরক্ষণ করে।"></p></div>
-      <div class="rule"><div class="rule-no">02</div><p data-en="These rules may be updated when necessary. Members are responsible for following the latest version published by the club." data-bn="প্রয়োজন অনুযায়ী এই নিয়মগুলো পরিবর্তন বা হালনাগাদ করা হতে পারে। ক্লাব কর্তৃক প্রকাশিত সর্বশেষ সংস্করণ অনুসরণ করা সদস্যদের দায়িত্ব।"></p></div>
-    </div>
-
-    <div class="ack">
-      <h2 data-en="Member Acknowledgement" data-bn="সদস্যের সম্মতিসূচক ঘোষণা"></h2>
-      <p data-en="By acknowledging below, you confirm that you have read and understood the club's Rules & Regulations and agree to follow them." data-bn="নিচে সম্মতি প্রদান করে আপনি নিশ্চিত করছেন যে আপনি ক্লাবের নিয়ম ও বিধিমালা পড়েছেন, বুঝেছেন এবং তা মেনে চলতে সম্মত।"></p>
-      <label>
-        <input id="agree" type="checkbox">
-        <span data-en="I have read and understood the Rules & Regulations of the club and agree to follow them." data-bn="আমি ক্লাবের নিয়ম ও বিধিমালা পড়েছি ও বুঝেছি এবং তা মেনে চলতে সম্মত।"></span>
-      </label>
-      <button class="ackbtn" id="ackBtn" disabled data-en="Acknowledge" data-bn="সম্মতি প্রদান করুন"></button>
-      <div class="status" id="status"></div>
-    </div>
-  </section>
-  <footer data-en="Programming & Robotics Club · Official Rules & Regulations" data-bn="Programming & Robotics Club · ক্লাবের অফিসিয়াল নিয়ম ও বিধিমালা"></footer>
-</main>
-
-<script>
-const raw=window.location.pathname.split('/').filter(Boolean);
-const code=raw.length?decodeURIComponent(raw[raw.length-1]):'MEMBER';
-document.getElementById('memberCode').textContent=code.toUpperCase();
-
-let lang='en';
-function setLanguage(next){
-  lang=next;
-  document.documentElement.lang=next==='bn'?'bn':'en';
-  document.querySelectorAll('[data-en]').forEach(el=>{
-    el.textContent=el.dataset[next];
-  });
-  document.getElementById('enBtn').classList.toggle('active',next==='en');
-  document.getElementById('bnBtn').classList.toggle('active',next==='bn');
-  localStorage.setItem('clubLanguage',next);
-}
-const saved=localStorage.getItem('clubLanguage');
-setLanguage(saved==='bn'?'bn':'en');
-
-const agree=document.getElementById('agree'),btn=document.getElementById('ackBtn'),status=document.getElementById('status');
-agree.addEventListener('change',()=>btn.disabled=!agree.checked);
-btn.addEventListener('click',()=>{
-  btn.textContent=lang==='bn'?'সম্মতি প্রদান করা হয়েছে ✓':'Acknowledged ✓';
-  btn.disabled=true;agree.disabled=true;
-  status.textContent=lang==='bn'?'ধন্যবাদ। আপনার সম্মতি সম্পন্ন হয়েছে।':'Thank you. Your acknowledgement is complete.';
-});
-</script>
+  <main class="page-wrap">
+    <section class="hero">
+      <p class="eyebrow">PUBLIC CLUB BLOG</p>
+      <h1>Learn, build, and<br><span>keep up with your batch.</span></h1>
+      <p>Batch announcements, learning resources, and member rosters in one place.</p>
+    </section>
+    <section class="batch-layout" aria-label="Batch blog">
+      <aside class="batch-panel">
+        <div class="section-heading"><div><p class="eyebrow">EXPLORE</p><h2>Choose a batch</h2></div><span id="batch-count" class="count">—</span></div>
+        <div id="batch-list" class="batch-list" aria-live="polite"><p class="loading">Loading batches…</p></div>
+        <a class="rules-link" href="./cmhsprc/">Read club rules <span>↗</span></a>
+      </aside>
+      <div class="batch-content">
+        <div id="portal-status" class="status" role="status" aria-live="polite"></div>
+        <section class="content-section" aria-labelledby="updates-title">
+          <div class="section-heading"><div><p class="eyebrow">LATEST FROM THE CLUB</p><h2 id="updates-title">Blog & announcements</h2></div></div>
+          <div id="announcement-list" class="post-list"><p class="empty">Choose a batch to see its updates.</p></div>
+        </section>
+        <section class="content-section" aria-labelledby="materials-title">
+          <div class="section-heading"><div><p class="eyebrow">KEEP LEARNING</p><h2 id="materials-title">Batch materials</h2></div></div>
+          <div id="material-list" class="material-list"><p class="empty">Materials shared by the club will appear here.</p></div>
+        </section>
+        <section class="content-section" aria-labelledby="roster-title">
+          <div class="section-heading"><div><p class="eyebrow">BATCH MEMBERS</p><h2 id="roster-title">Student roster</h2></div><span id="roster-count" class="count"></span></div>
+          <div class="roster-scroll"><table><thead><tr><th>Student ID</th><th>Full name</th></tr></thead><tbody id="roster-body"><tr><td colspan="2" class="empty">Choose a batch to view its roster.</td></tr></tbody></table></div>
+          <p class="privacy-note">This public roster shows student IDs and names only.</p>
+        </section>
+      </div>
+    </section>
+  </main>
+  <footer><span>Cumilla Modern High School Programming And Robotics Club</span><span>Public batch blog</span></footer>
+  <script type="module" src="./portal.js"></script>
 </body>
 </html>

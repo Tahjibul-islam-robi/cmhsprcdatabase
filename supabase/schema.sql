@@ -41,6 +41,30 @@ create table if not exists public.batch_students (
 );
 create index if not exists batch_students_student_idx on public.batch_students (student_id);
 
+create table if not exists public.batch_resources (
+  id uuid primary key default gen_random_uuid(),
+  batch_id uuid not null references public.batches(id) on delete cascade,
+  category text not null check (category in ('material', 'announcement')),
+  title text not null check (length(trim(title)) between 1 and 160),
+  body text not null default '',
+  file_name text,
+  object_path text unique,
+  content_type text,
+  file_size bigint,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (file_size is null or (file_size > 0 and file_size <= 26214400)),
+  check (
+    (object_path is null and file_name is null and content_type is null and file_size is null)
+    or (object_path is not null and file_name is not null and content_type is not null and file_size is not null)
+  ),
+  check (category <> 'material' or object_path is not null),
+  check (category <> 'announcement' or content_type is null or content_type = 'application/pdf'),
+  check (category <> 'announcement' or length(trim(body)) > 0 or object_path is not null)
+);
+create index if not exists batch_resources_batch_created_idx on public.batch_resources (batch_id, created_at desc);
+create index if not exists batch_resources_category_idx on public.batch_resources (category);
+
 create table if not exists public.attendance_sessions (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -76,20 +100,26 @@ $body$;
 drop trigger if exists students_set_updated_at on public.students;
 create trigger students_set_updated_at before update on public.students
 for each row execute function public.set_updated_at();
+drop trigger if exists batch_resources_set_updated_at on public.batch_resources;
+create trigger batch_resources_set_updated_at before update on public.batch_resources
+for each row execute function public.set_updated_at();
 
 alter table public.students enable row level security;
 alter table public.batches enable row level security;
 alter table public.batch_students enable row level security;
+alter table public.batch_resources enable row level security;
 alter table public.attendance_sessions enable row level security;
 alter table public.attendance_records enable row level security;
 revoke all on public.students from anon, authenticated;
 revoke all on public.batches from anon, authenticated;
 revoke all on public.batch_students from anon, authenticated;
+revoke all on public.batch_resources from anon, authenticated;
 revoke all on public.attendance_sessions from anon, authenticated;
 revoke all on public.attendance_records from anon, authenticated;
 grant select, insert, update, delete on public.students to authenticated;
 grant select, insert, update, delete on public.batches to authenticated;
 grant select, insert, update, delete on public.batch_students to authenticated;
+grant select, insert, update, delete on public.batch_resources to authenticated;
 grant usage, select on sequence public.batches_batch_number_seq to authenticated;
 revoke all on sequence public.batches_batch_number_seq from anon;
 grant select, insert, update, delete on public.attendance_sessions to authenticated;
@@ -104,9 +134,93 @@ using (auth.uid() is not null) with check (auth.uid() is not null);
 drop policy if exists "Admins manage batch students" on public.batch_students;
 create policy "Admins manage batch students" on public.batch_students for all to authenticated
 using (auth.uid() is not null) with check (auth.uid() is not null);
+drop policy if exists "Admins manage batch resources" on public.batch_resources;
+create policy "Admins manage batch resources" on public.batch_resources for all to authenticated
+using (auth.uid() is not null) with check (auth.uid() is not null);
 drop policy if exists "Admins manage attendance sessions" on public.attendance_sessions;
 create policy "Admins manage attendance sessions" on public.attendance_sessions for all to authenticated
 using (auth.uid() is not null) with check (auth.uid() is not null);
 drop policy if exists "Admins manage attendance records" on public.attendance_records;
 create policy "Admins manage attendance records" on public.attendance_records for all to authenticated
 using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- The student portal uses these narrow public RPCs instead of reading the
+-- private student, membership, or resource tables directly.
+create or replace function public.get_public_batches()
+returns table (
+  batch_id uuid,
+  batch_number integer,
+  batch_name text,
+  student_id text,
+  full_name text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $body$
+  select b.id, b.batch_number, b.name, s.student_id, s.full_name
+  from public.batches as b
+  left join public.batch_students as bs on bs.batch_id = b.id
+  left join public.students as s on s.student_id = bs.student_id
+  order by b.batch_number, s.student_id nulls last;
+$body$;
+revoke all on function public.get_public_batches() from public, anon, authenticated;
+grant execute on function public.get_public_batches() to anon, authenticated;
+
+create or replace function public.get_public_batch_resources()
+returns table (
+  id uuid,
+  batch_id uuid,
+  batch_number integer,
+  batch_name text,
+  category text,
+  title text,
+  body text,
+  file_name text,
+  object_path text,
+  content_type text,
+  file_size bigint,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $body$
+  select r.id, r.batch_id, b.batch_number, b.name, r.category, r.title,
+         r.body, r.file_name, r.object_path, r.content_type, r.file_size, r.created_at
+  from public.batch_resources as r
+  join public.batches as b on b.id = r.batch_id
+  order by r.created_at desc, r.title;
+$body$;
+revoke all on function public.get_public_batch_resources() from public, anon, authenticated;
+grant execute on function public.get_public_batch_resources() to anon, authenticated;
+
+-- Published files are intentionally public. Mutations stay behind the same
+-- signed-in administrator role used by the private admin panel.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'club-materials', 'club-materials', true, 26214400,
+  array[
+    'application/pdf', 'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain', 'text/csv', 'application/zip',
+    'image/jpeg', 'image/png', 'image/webp'
+  ]
+)
+on conflict (id) do update set
+  name = excluded.name,
+  public = true,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Admins manage club materials" on storage.objects;
+create policy "Admins manage club materials" on storage.objects
+for all to authenticated
+using (bucket_id = 'club-materials' and auth.uid() is not null)
+with check (bucket_id = 'club-materials' and auth.uid() is not null);

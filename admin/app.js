@@ -11,7 +11,17 @@ const TABLE_FIELDS = [
 const BATCH_EXPORT_FIELDS = [["batch_number", "Batch number"], ["batch_name", "Batch name"], ...TABLE_FIELDS];
 const CORE_FIELDS = ["full_name", "class", "section", "roll"];
 const LEGACY_ATTENDANCE_TITLE = "Imported legacy attendance";
-const state = { client: null, userId: "", students: [], batches: [], memberships: [], sessions: [], attendance: [], page: "overview",
+const PUBLIC_RESOURCE_BUCKET = "club-materials";
+const MAX_RESOURCE_FILE_SIZE = 25 * 1024 * 1024;
+const RESOURCE_MIME_TYPES = {
+  pdf: "application/pdf", doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  txt: "text/plain", csv: "text/csv", zip: "application/zip", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp"
+};
+const RESOURCE_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp";
+const state = { client: null, userId: "", students: [], batches: [], memberships: [], sessions: [], attendance: [], resources: [], resourcesError: null, page: "overview",
   currentStudent: null, editingId: null, selectedSessionId: "", selectedBatchId: "", pendingImport: [], pendingImportAttendance: [], filteredStudents: [] };
 const $ = (selector) => document.querySelector(selector);
 
@@ -57,10 +67,11 @@ function setPage(page) {
   state.page = page;
   document.querySelectorAll(".page-section").forEach((section) => { section.hidden = section.dataset.section !== page; });
   document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === page));
-  const titles = { overview: "Overview", students: "Students", batches: "Batches", attendance: "Attendance", reports: "Reports", data: "Data quality", backup: "Import & backup" };
+  const titles = { overview: "Overview", students: "Students", batches: "Batches", resources: "Blog & materials", attendance: "Attendance", reports: "Reports", data: "Data quality", backup: "Import & backup" };
   $("#page-title").textContent = titles[page] || "Overview";
   if (page === "students") renderStudents();
   if (page === "batches") renderBatches();
+  if (page === "resources") renderResources();
   if (page === "attendance") renderAttendance();
   if (page === "reports") renderReports();
   if (page === "data") renderQuality();
@@ -83,17 +94,20 @@ async function loadData() {
     state.client.from("batches").select("*").order("batch_number"),
     state.client.from("batch_students").select("*"),
     state.client.from("attendance_sessions").select("*").order("session_date", { ascending: false }),
-    state.client.from("attendance_records").select("*")
+    state.client.from("attendance_records").select("*"),
+    state.client.from("batch_resources").select("*").order("created_at", { ascending: false })
   ]);
   const names = ["students", "batches", "batch memberships", "attendance sessions", "attendance"];
-  for (let i = 0; i < results.length; i += 1) if (results[i].error) throw new Error(names[i] + ": " + results[i].error.message);
+  for (let i = 0; i < names.length; i += 1) if (results[i].error) throw new Error(names[i] + ": " + results[i].error.message);
   state.students = results[0].data || [];
   state.batches = results[1].data || [];
   state.memberships = results[2].data || [];
   state.sessions = results[3].data || [];
   state.attendance = results[4].data || [];
+  state.resources = results[5].error ? [] : (results[5].data || []);
+  state.resourcesError = results[5].error || null;
   if (!state.batches.some((batch) => batch.id === state.selectedBatchId)) state.selectedBatchId = state.batches[0] ? state.batches[0].id : "";
-  renderDashboard(); renderStudents(); renderBatches(); renderAttendance(); renderReports(); renderQuality();
+  renderDashboard(); renderStudents(); renderBatches(); renderResources(); renderAttendance(); renderReports(); renderQuality();
 }
 function showApp(user) {
   $("#login-view").hidden = true; $("#admin-app").hidden = false; $("#user-email").textContent = user.email || "Administrator";
@@ -102,7 +116,7 @@ function showApp(user) {
   loadData().catch((error) => showToast("Could not load private records. " + error.message, "error"));
 }
 function showLogin() {
-  state.userId = ""; state.students = []; state.batches = []; state.memberships = []; state.sessions = []; state.attendance = []; state.filteredStudents = []; state.selectedBatchId = "";
+  state.userId = ""; state.students = []; state.batches = []; state.memberships = []; state.sessions = []; state.attendance = []; state.resources = []; state.resourcesError = null; state.filteredStudents = []; state.selectedBatchId = "";
   $("#admin-app").hidden = true; $("#login-view").hidden = false;
 }
 function initialize() {
@@ -359,6 +373,158 @@ function renderBatches() {
     " · Class " + escapeHtml(displayValue(student.class)) + " · Section " + escapeHtml(displayValue(student.section)) + '</small></div><button class="table-action remove-member" type="button" data-remove-member-id="' +
     encodeURIComponent(student.student_id) + '">Remove</button></div>').join("");
 }
+function publicResourceUrl(objectPath) {
+  if (!objectPath || !state.client) return "";
+  return state.client.storage.from(PUBLIC_RESOURCE_BUCKET).getPublicUrl(objectPath).data.publicUrl;
+}
+function renderResources() {
+  const body = $("#resource-table-body"); if (!body) return;
+  fillBatchIdSelect($("#resource-batch-id"));
+  const error = $("#resource-schema-error");
+  error.hidden = !state.resourcesError;
+  if (state.resourcesError) {
+    error.textContent = "The materials database is not ready. Run the latest supabase/schema.sql in Supabase SQL Editor, then refresh the admin app. Details: " + state.resourcesError.message;
+  }
+  const resources = state.resources.slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  $("#resource-list-count").textContent = state.resourcesError ? "Unavailable until setup is complete" : resources.length + (resources.length === 1 ? " published item" : " published items");
+  $("#resource-empty").hidden = resources.length > 0 || Boolean(state.resourcesError);
+  body.innerHTML = resources.map((resource) => {
+    const batch = state.batches.find((item) => item.id === resource.batch_id);
+    const fileUrl = resource.object_path ? publicResourceUrl(resource.object_path) : "";
+    const attachment = fileUrl ? '<a class="resource-file-link" href="' + escapeHtml(fileUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(resource.file_name || "Open file") + "</a>" : "—";
+    const category = resource.category === "announcement" ? "Blog / notice" : "Material";
+    return "<tr><td>" + category + "</td><td>" + escapeHtml(batch ? "#" + batch.batch_number + " · " + batch.name : "Batch") + "</td><td>" + escapeHtml(resource.title) +
+      "</td><td>" + attachment + "</td><td>" + escapeHtml(dateLabel(resource.created_at)) + '</td><td><div class="resource-row-actions"><button class="table-action" type="button" data-edit-resource="' + escapeHtml(resource.id) + '">Edit</button><button class="table-action delete-resource" type="button" data-delete-resource="' + escapeHtml(resource.id) + '">Delete</button></div></td></tr>';
+  }).join("");
+}
+function updateResourceFormMode() {
+  const announcement = $("#resource-category").value === "announcement";
+  $("#resource-body-label").textContent = announcement ? "Post text (or attach a PDF notice)" : "Material notes (optional)";
+  $("#resource-body").placeholder = announcement ? "Write the announcement or update for this batch." : "Describe what students will learn or find in this file.";
+  $("#resource-file").accept = announcement ? ".pdf,application/pdf" : RESOURCE_ACCEPT;
+  $("#resource-file-help").textContent = announcement ? "Optional PDF notice. Your post and attachment are public." : "Upload a PDF, document, slide deck, spreadsheet, image, text file, or ZIP. Attachments are public.";
+}
+function resetResourceForm() {
+  $("#resource-form").reset();
+  $("#resource-id").value = "";
+  $("#resource-category").disabled = false;
+  $("#resource-form-heading").textContent = "Publish to a batch";
+  $("#save-resource").textContent = "Publish";
+  $("#cancel-resource-edit").hidden = true;
+  $("#resource-existing-file").hidden = true;
+  $("#resource-form-error").hidden = true;
+  updateResourceFormMode();
+  fillBatchIdSelect($("#resource-batch-id"));
+}
+function beginResourceEdit(resourceId) {
+  const resource = state.resources.find((item) => item.id === resourceId); if (!resource) return;
+  $("#resource-id").value = resource.id;
+  $("#resource-batch-id").value = resource.batch_id;
+  $("#resource-category").value = resource.category;
+  $("#resource-category").disabled = true;
+  $("#resource-title").value = resource.title;
+  $("#resource-body").value = resource.body || "";
+  $("#resource-file").value = "";
+  $("#resource-form-heading").textContent = "Edit published item";
+  $("#save-resource").textContent = "Save changes";
+  $("#cancel-resource-edit").hidden = false;
+  const fileInfo = $("#resource-existing-file");
+  if (resource.object_path) {
+    fileInfo.innerHTML = "Current attachment: <a href=\"" + escapeHtml(publicResourceUrl(resource.object_path)) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + escapeHtml(resource.file_name) + "</a>. Choose a replacement file if needed.";
+    fileInfo.hidden = false;
+  } else fileInfo.hidden = true;
+  $("#resource-form-error").hidden = true;
+  updateResourceFormMode();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function uploadFilename(name) {
+  const cleaned = String(name || "file").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(-100);
+  return cleaned || "file";
+}
+function createObjectToken() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
+  return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+}
+function validateResourceFile(file, category) {
+  if (!file) return null;
+  const extension = String(file.name.split(".").pop() || "").toLowerCase(), contentType = RESOURCE_MIME_TYPES[extension];
+  if (!contentType) throw new Error("Choose a supported file: PDF, Word, PowerPoint, Excel, TXT, CSV, ZIP, JPG, PNG, or WebP.");
+  if (category === "announcement" && extension !== "pdf") throw new Error("Blog and notice attachments must be PDF files.");
+  if (file.size <= 0 || file.size > MAX_RESOURCE_FILE_SIZE) throw new Error("Each attachment must be smaller than 25 MB.");
+  return { contentType, fileName: file.name, fileSize: file.size };
+}
+$("#resource-category").addEventListener("change", updateResourceFormMode);
+$("#cancel-resource-edit").addEventListener("click", resetResourceForm);
+$("#resource-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const errorEl = $("#resource-form-error"); errorEl.hidden = true;
+  const batchId = $("#resource-batch-id").value, category = $("#resource-category").value;
+  const title = $("#resource-title").value.trim(), postBody = $("#resource-body").value.trim();
+  const file = $("#resource-file").files && $("#resource-file").files[0];
+  const editingId = $("#resource-id").value, existing = editingId ? state.resources.find((item) => item.id === editingId) : null;
+  if (!batchId) { errorEl.textContent = "Create a batch before publishing a post or material."; errorEl.hidden = false; return; }
+  if (!title) { errorEl.textContent = "Enter a title."; errorEl.hidden = false; return; }
+  if (category === "announcement" && !postBody && !file && !(existing && existing.object_path)) { errorEl.textContent = "Write the post or attach a PDF notice."; errorEl.hidden = false; return; }
+  if (category === "material" && !file && !(existing && existing.object_path)) { errorEl.textContent = "Choose a file for this material."; errorEl.hidden = false; return; }
+  let fileInfo;
+  try { fileInfo = validateResourceFile(file, category); }
+  catch (error) { errorEl.textContent = error.message; errorEl.hidden = false; return; }
+
+  const button = $("#save-resource"); button.disabled = true;
+  const oldPath = existing && existing.object_path;
+  let newPath = null;
+  let saved = false;
+  try {
+    if (file) {
+      newPath = batchId + "/" + category + "/" + createObjectToken() + "-" + uploadFilename(file.name);
+      const uploaded = await state.client.storage.from(PUBLIC_RESOURCE_BUCKET).upload(newPath, file, { contentType: fileInfo.contentType, cacheControl: "3600", upsert: false });
+      if (uploaded.error) throw new Error("File upload failed: " + uploaded.error.message);
+    }
+    const payload = {
+      batch_id: batchId, category, title, body: postBody,
+      file_name: fileInfo ? fileInfo.fileName : (existing ? existing.file_name : null),
+      object_path: newPath || (existing ? existing.object_path : null),
+      content_type: fileInfo ? fileInfo.contentType : (existing ? existing.content_type : null),
+      file_size: fileInfo ? fileInfo.fileSize : (existing ? existing.file_size : null)
+    };
+    const result = existing
+      ? await state.client.from("batch_resources").update(payload).eq("id", existing.id)
+      : await state.client.from("batch_resources").insert(payload);
+    if (result.error) throw new Error("Could not save the post: " + result.error.message);
+    saved = true;
+    if (newPath && oldPath) {
+      const removed = await state.client.storage.from(PUBLIC_RESOURCE_BUCKET).remove([oldPath]);
+      if (removed.error) showToast("Saved the update, but the old attachment could not be removed: " + removed.error.message, "error");
+    }
+    resetResourceForm();
+    try { await loadData(); }
+    catch (refreshError) { showToast("Published successfully, but the admin list could not refresh: " + refreshError.message, "error"); return; }
+    showToast(existing ? "Published item updated." : "Published to the selected batch.", "success");
+  } catch (error) {
+    if (newPath && !saved) await state.client.storage.from(PUBLIC_RESOURCE_BUCKET).remove([newPath]);
+    if (saved) showToast("The item was saved, but cleanup reported an error: " + (error.message || "unknown error"), "error");
+    else { errorEl.textContent = error.message || "The item could not be saved."; errorEl.hidden = false; }
+  } finally { button.disabled = false; }
+});
+$("#resource-table-body").addEventListener("click", async (event) => {
+  const editButton = event.target.closest("[data-edit-resource]");
+  if (editButton) { beginResourceEdit(editButton.dataset.editResource); return; }
+  const deleteButton = event.target.closest("[data-delete-resource]"); if (!deleteButton) return;
+  const resource = state.resources.find((item) => item.id === deleteButton.dataset.deleteResource); if (!resource) return;
+  if (!window.confirm("Delete “" + resource.title + "” and its attachment from the public site?")) return;
+  deleteButton.disabled = true;
+  try {
+    if (resource.object_path) {
+      const removed = await state.client.storage.from(PUBLIC_RESOURCE_BUCKET).remove([resource.object_path]);
+      if (removed.error) throw new Error("File delete failed: " + removed.error.message);
+    }
+    const result = await state.client.from("batch_resources").delete().eq("id", resource.id);
+    if (result.error) throw new Error("Could not delete the post record: " + result.error.message);
+    if (resource.id === $("#resource-id").value) resetResourceForm();
+    await loadData(); showToast("Published item deleted.", "success");
+  } catch (error) { showToast(error.message || "Could not delete the published item.", "error"); deleteButton.disabled = false; }
+});
 $("#new-batch-button").addEventListener("click", () => {
   $("#batch-form").reset(); $("#batch-form-error").hidden = true; openDialog("batch-dialog");
 });
