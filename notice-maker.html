@@ -19,6 +19,13 @@
       <label>Date <input id="notice-date" type="date"></label>
       <label>Subject / title <input id="notice-title" type="text" placeholder="e.g. Batch 1 Weekly Session"></label>
       <label>Notice text <textarea id="notice-body" rows="10" placeholder="Write the notice here. New lines and paragraphs are preserved."></textarea></label>
+      <fieldset class="grid-editor">
+        <legend>Spreadsheet / grid (optional)</legend>
+        <label>Paste cells copied from Excel or Google Sheets<textarea id="grid-paste" rows="4" placeholder="Copy a cell range and paste it here. Keep columns separated by tabs."></textarea></label>
+        <button class="secondary paste-button" id="insert-grid" type="button">Insert pasted grid</button>
+        <div class="grid-tools"><label class="header-toggle"><input id="grid-first-row-header" type="checkbox" checked> First row is a heading</label><span class="grid-button-group"><button class="secondary" id="add-grid-row" type="button">＋ Row</button><button class="secondary" id="add-grid-column" type="button">＋ Column</button><button class="secondary" id="clear-grid" type="button">Clear grid</button></span></div>
+        <div id="grid-editor-cells" class="grid-editor-cells"><p class="grid-empty">No grid added.</p></div>
+      </fieldset>
       <label>President’s name (optional) <input id="president-name" type="text" placeholder="Enter the president’s name"></label>
       <div class="editor-actions"><button class="primary" id="print-notice" type="button">Print / Save as PDF</button><button class="secondary" id="clear-notice" type="button">Clear fields</button></div>
       <p class="hint">In the print dialog, choose “Save as PDF” to create a file you can upload as a notice in Admin → Blog & materials.</p>
@@ -35,6 +42,7 @@
       <h1 class="notice-label">NOTICE</h1>
       <h2 id="preview-title" class="notice-title">Notice title</h2>
       <div id="preview-body" class="notice-body">Your notice text will appear here.</div>
+      <div id="preview-grid" class="notice-grid" hidden></div>
       <div class="signature"><div class="signature-space"></div><div class="signature-rule"></div><strong id="preview-president">President</strong><span>Programming And Robotics Club</span><span>Cumilla Modern High School</span></div>
       <footer class="paper-footer">Cumilla Modern High School Programming And Robotics Club</footer>
     </article>

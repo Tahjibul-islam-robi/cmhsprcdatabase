@@ -10,7 +10,7 @@ This folder is the website package to upload to GitHub Pages. It contains the pu
 - Add, edit, delete, and CSV export with confirmation for contact data.
 - Numbered batches with student membership managed by exact student IDs.
 - Public batch blog with announcements/notices and learning materials managed directly from the admin panel.
-- Print-ready notice designer with the club logo, letterhead, date/notice number, editable notice text, and President signature block; use the browser print dialog to save as PDF.
+- Print-ready notice designer with the club logo, letterhead, date/notice number, editable notice text, paste-from-spreadsheet grid, and President signature block; use the browser print dialog to save as PDF.
 - Public batch rosters show only full names and student IDs. Student contact details, addresses, and guardian information remain in protected tables and are not returned by the public portal.
 - Public files are stored in the `club-materials` bucket; announcement attachments must be PDF. Upload limit is 25 MB per file.
 - Export the selected batch roster as Excel (.xlsx), CSV, or JSON, with all student profile fields and a privacy confirmation.
