@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>Notice Designer | CMHS Programming & Robotics Club</title>
+  <link rel="icon" href="./logo.png">
+  <link rel="stylesheet" href="./notice-maker.css">
+</head>
+<body>
+  <header class="toolbar no-print"><a class="back-link" href="./admin/">← Back to Admin</a><span>NOTICE DESIGNER</span><a class="back-link" href="./">Public blog ↗</a></header>
+  <main class="maker-layout">
+    <section class="editor no-print">
+      <p class="eyebrow">MAKE A PRINTABLE NOTICE</p>
+      <h1>Notice details</h1>
+      <p class="intro">Fill in the fields, check the preview, then choose “Print / Save as PDF”.</p>
+      <label>Notice number <input id="notice-number" type="text" placeholder="e.g. CMHSPRC/2026/01"></label>
+      <label>Date <input id="notice-date" type="date"></label>
+      <label>Subject / title <input id="notice-title" type="text" placeholder="e.g. Batch 1 Weekly Session"></label>
+      <label>Notice text <textarea id="notice-body" rows="10" placeholder="Write the notice here. New lines and paragraphs are preserved."></textarea></label>
+      <label>President’s name (optional) <input id="president-name" type="text" placeholder="Enter the president’s name"></label>
+      <div class="editor-actions"><button class="primary" id="print-notice" type="button">Print / Save as PDF</button><button class="secondary" id="clear-notice" type="button">Clear fields</button></div>
+      <p class="hint">In the print dialog, choose “Save as PDF” to create a file you can upload as a notice in Admin → Blog & materials.</p>
+    </section>
+    <article class="notice-paper" aria-label="Notice preview">
+      <header class="letterhead">
+        <img src="./logo.png" alt="Cumilla Modern High School Programming And Robotics Club logo">
+        <p class="school-name">CUMILLA MODERN HIGH SCHOOL</p>
+        <h2>PROGRAMMING AND ROBOTICS CLUB</h2>
+        <p class="motto">LEARN · CREATE · INNOVATE</p>
+      </header>
+      <div class="double-rule"><span></span><span></span></div>
+      <div class="notice-meta"><span id="preview-number">Notice No: __________________</span><time id="preview-date">Date: __________________</time></div>
+      <h1 class="notice-label">NOTICE</h1>
+      <h2 id="preview-title" class="notice-title">Notice title</h2>
+      <div id="preview-body" class="notice-body">Your notice text will appear here.</div>
+      <div class="signature"><div class="signature-space"></div><div class="signature-rule"></div><strong id="preview-president">President</strong><span>Programming And Robotics Club</span><span>Cumilla Modern High School</span></div>
+      <footer class="paper-footer">Cumilla Modern High School Programming And Robotics Club</footer>
+    </article>
+  </main>
+  <script src="./notice-maker.js"></script>
+</body>
+</html>
