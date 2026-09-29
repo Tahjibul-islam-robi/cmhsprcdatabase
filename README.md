@@ -10,7 +10,6 @@ This folder is the website package to upload to GitHub Pages. It contains the pu
 - Add, edit, delete, and CSV export with confirmation for contact data.
 - Numbered batches with student membership managed by exact student IDs.
 - Public batch blog with announcements/notices and learning materials managed directly from the admin panel.
-- Notice designer with the club logo, letterhead, date/notice number, Bangla/English text, paste-from-spreadsheet grid, and President signature block. Its Bangla routine preset includes Monday/Wednesday classes in periods 6 and 7 until the expected October 20 test exam, then notes that a new routine will follow. After an administrator signs in, it loads student names, IDs, sections, classes, rolls, and phone numbers only from the selected batch (Batch 1 by default). Print to PDF for publication or download an editable DOCX for Apple Pages or Canva.
 - Public batch rosters show only full names and student IDs. Student contact details, addresses, and guardian information remain in protected tables and are not returned by the public portal.
 - Public files are stored in the `club-materials` bucket; announcement attachments must be PDF. Upload limit is 25 MB per file.
 - Export the selected batch roster as Excel (.xlsx), CSV, or JSON, with all student profile fields and a privacy confirmation.
@@ -29,7 +28,7 @@ Students can belong to one or more batches. Batch attendance meetings include on
 3. In Supabase Auth settings, turn off public user sign-ups. Create your administrator login from the Supabase dashboard.
 4. Open admin/config.js and set the project URL and publishable key. The publishable key is intended for browser apps. Never put a service-role or secret key in this file.
 5. Keep the database tables protected by the row-level security policies in the schema.
-6. Open the site root over HTTPS for the public blog. Open admin/ and sign in to publish or edit posts, PDF notices, and batch materials. Use “Design printable notice” in Blog & materials to prepare a notice PDF or editable DOCX. Open the DOCX in Pages or import it into Canva, make your changes, then export a PDF and upload it in Admin to publish. Changes in Pages or Canva do not sync back to this site automatically.
+6. Open the site root over HTTPS for the public blog. Open admin/ and sign in to publish or edit posts, upload PDF notices, and add batch materials. Create notices in your preferred app, then upload the finished PDF from Blog & materials.
 7. In Import & backup, select your existing students.json file and review the preview before importing.
 
 The app imports student ID, name, class, section, roll, date of birth, gender, student phone, email, home address, guardian name, relationship, and guardian phone. It deliberately leaves out club status and area of interest. Historical attendance imports only recognized Present, Absent, or Late marks with valid dates; unsupported marks are counted in the preview. The original local JSON file is not modified or included in this upload package.
