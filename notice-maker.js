@@ -6,17 +6,20 @@ const fields = {
   president: document.querySelector("#president-name")
 };
 let grid = [];
+let banglaNotice = false;
+let databaseClient;
 const gridEditor = document.querySelector("#grid-editor-cells");
 const previewGrid = document.querySelector("#preview-grid");
 function displayDate(value) {
   if (!value) return "__________________";
   const [year, month, day] = value.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(year, month - 1, day));
+  return new Intl.DateTimeFormat(banglaNotice ? "bn-BD" : "en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(year, month - 1, day));
 }
 function updatePreview() {
-  document.querySelector("#preview-number").textContent = "Notice No: " + (fields.number.value.trim() || "__________________");
-  document.querySelector("#preview-date").textContent = "Date: " + displayDate(fields.date.value);
+  document.querySelector("#preview-number").textContent = (banglaNotice ? "স্মারক নং: " : "Notice No: ") + (fields.number.value.trim() || "__________________");
+  document.querySelector("#preview-date").textContent = (banglaNotice ? "তারিখ: " : "Date: ") + displayDate(fields.date.value);
   document.querySelector("#preview-title").textContent = fields.title.value.trim() || "Notice title";
+  document.querySelector("#preview-notice-label").textContent = banglaNotice ? "বিজ্ঞপ্তি" : "NOTICE";
   document.querySelector("#preview-body").textContent = fields.body.value.trim() || "Your notice text will appear here.";
   document.querySelector("#preview-president").textContent = fields.president.value.trim() || "President";
   renderGridPreview();
@@ -62,6 +65,46 @@ function renderGridPreview() {
   table.append(tbody); previewGrid.append(table); previewGrid.hidden = false;
 }
 Object.values(fields).forEach((field) => field.addEventListener("input", updatePreview));
+document.querySelector("#load-bangla-routine").addEventListener("click", () => {
+  banglaNotice = true;
+  fields.title.value = "ক্লাসের সময়সূচি ও শিক্ষার্থীদের তথ্য";
+  fields.body.value = `সকল শিক্ষার্থীর অবগতির জন্য জানানো যাচ্ছে যে, আসন্ন টেস্ট পরীক্ষা (সম্ভাব্য তারিখ: ২০ অক্টোবর) পর্যন্ত ক্লাবের ক্লাস প্রতি সোমবার ও বুধবার ৬ষ্ঠ ও ৭ম পিরিয়ডে অনুষ্ঠিত হবে।
+
+পরীক্ষা শেষ হলে পরবর্তী ক্লাসের সময়সূচি নতুন করে জানিয়ে দেওয়া হবে। সবাইকে নির্ধারিত দিনে ও সময়ে উপস্থিত থাকার অনুরোধ করা হলো।
+
+শিক্ষার্থীদের তথ্য নিচে দেওয়া হলো।`;
+  fields.number.value = "";
+  grid = [["শিক্ষার্থীর নাম", "আইডি কোড", "শাখা", "শ্রেণি", "রোল", "মোবাইল নম্বর"], ...Array.from({ length: 5 }, () => Array(6).fill(""))];
+  document.querySelector("#grid-first-row-header").checked = true;
+  renderGridEditor(); updatePreview();
+});
+async function loadStudentRecords() {
+  const button = document.querySelector("#load-students"), status = document.querySelector("#student-load-status");
+  button.disabled = true; status.textContent = "Loading student records…";
+  try {
+    const config = window.CLUB_SUPABASE_CONFIG || {};
+    if (!config.url || !config.publishableKey) throw new Error("Supabase is not configured in admin/config.js.");
+    if (!databaseClient) {
+      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+      databaseClient = createClient(config.url, config.publishableKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+    }
+    const { data: sessionData, error: sessionError } = await databaseClient.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (!sessionData.session) throw new Error("Sign in to the Admin panel first, then return here and try again.");
+    const { data, error } = await databaseClient.from("students")
+      .select("student_id,full_name,section,class,roll,student_contact_number")
+      .order("student_id", { ascending: true });
+    if (error) throw error;
+    const students = (data || []).slice().sort((a, b) => String(a.student_id || "").localeCompare(String(b.student_id || ""), undefined, { numeric: true, sensitivity: "base" }));
+    grid = [["শিক্ষার্থীর নাম", "আইডি কোড", "শাখা", "শ্রেণি", "রোল", "মোবাইল নম্বর"], ...students.map((student) => [String(student.full_name || ""), String(student.student_id || ""), String(student.section || ""), String(student.class || ""), student.roll == null ? "" : String(student.roll), String(student.student_contact_number || "")])];
+    document.querySelector("#grid-first-row-header").checked = true;
+    renderGridEditor(); updatePreview();
+    status.textContent = students.length + "টি শিক্ষার্থীর তথ্য যোগ হয়েছে। সম্পূর্ণ নোটিশ প্রকাশ করলে ফোন নম্বরগুলোও সবার জন্য দৃশ্যমান হবে।";
+  } catch (error) {
+    status.textContent = error.message || "Student records could not be loaded.";
+  } finally { button.disabled = false; }
+}
+document.querySelector("#load-students").addEventListener("click", loadStudentRecords);
 document.querySelector("#insert-grid").addEventListener("click", () => {
   const pasted = document.querySelector("#grid-paste").value.trim();
   if (!pasted) return;
@@ -107,9 +150,9 @@ document.querySelector("#download-docx").addEventListener("click", async (event)
       centered("PROGRAMMING AND ROBOTICS CLUB", 30, true),
       centered("LEARN · CREATE · INNOVATE", 18),
       new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 180, after: 180 }, children: [new TextRun({ text: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", font, size: 18 })] }),
-      new Paragraph({ spacing: { after: 140 }, children: [new TextRun({ text: "Notice No: " + (fields.number.value.trim() || "__________________"), font, size: 20 })] }),
-      new Paragraph({ spacing: { after: 240 }, children: [new TextRun({ text: "Date: " + displayDate(fields.date.value), font, size: 20 })] }),
-      centered("NOTICE", 28, true),
+      new Paragraph({ spacing: { after: 140 }, children: [new TextRun({ text: (banglaNotice ? "স্মারক নং: " : "Notice No: ") + (fields.number.value.trim() || "__________________"), font, size: 20 })] }),
+      new Paragraph({ spacing: { after: 240 }, children: [new TextRun({ text: (banglaNotice ? "তারিখ: " : "Date: ") + displayDate(fields.date.value), font, size: 20 })] }),
+      centered(banglaNotice ? "বিজ্ঞপ্তি" : "NOTICE", 28, true),
       new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 100, after: 260 }, children: [new TextRun({ text: fields.title.value.trim() || "Notice title", font, size: 28, bold: true })] })
     ];
     const bodyText = fields.body.value.trim();
@@ -153,5 +196,5 @@ document.querySelector("#clear-notice").addEventListener("click", () => {
   grid = []; document.querySelector("#grid-paste").value = ""; renderGridEditor();
   updatePreview();
 });
-renderGridEditor();
-updatePreview();
+document.querySelector("#load-bangla-routine").click();
+loadStudentRecords();
