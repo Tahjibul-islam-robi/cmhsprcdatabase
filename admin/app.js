@@ -100,9 +100,10 @@ function setPage(page) {
   state.page = page;
   document.querySelectorAll(".page-section").forEach((section) => { section.hidden = section.dataset.section !== page; });
   document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === page));
-  const titles = { overview: "Overview", students: "Students", batches: "Batches", resources: "Blog & materials", attendance: "Attendance", reports: "Reports", data: "Data quality", backup: "Import & backup" };
+  const titles = { overview: "Overview", students: "Students", committee: "Committee & volunteers", batches: "Batches", resources: "Blog & materials", attendance: "Attendance", reports: "Reports", data: "Data quality", backup: "Import & backup" };
   $("#page-title").textContent = titles[page] || "Overview";
   if (page === "students") renderStudents();
+  if (page === "committee") renderCommittee();
   if (page === "batches") renderBatches();
   if (page === "resources") renderResources();
   if (page === "attendance") renderAttendance();
@@ -140,7 +141,7 @@ async function loadData() {
   state.resources = results[5].error ? [] : (results[5].data || []);
   state.resourcesError = results[5].error || null;
   if (!state.batches.some((batch) => batch.id === state.selectedBatchId)) state.selectedBatchId = state.batches[0] ? state.batches[0].id : "";
-  renderDashboard(); renderStudents(); renderBatches(); renderResources(); renderAttendance(); renderReports(); renderQuality();
+  renderDashboard(); renderStudents(); renderCommittee(); renderBatches(); renderResources(); renderAttendance(); renderReports(); renderQuality();
 }
 function showApp(user) {
   $("#login-view").hidden = true; $("#admin-app").hidden = false; $("#user-email").textContent = user.email || "Administrator";
@@ -265,6 +266,59 @@ function renderStudents() {
     encodeURIComponent(student.student_id) + '">View</button><button class="table-action" type="button" data-action="edit" data-id="' +
     encodeURIComponent(student.student_id) + '">Edit</button></div></td></tr>').join("");
 }
+function committeeRoles(student) {
+  const code = String(student.student_id || "").toUpperCase();
+  return { admin: code.includes("ADM"), volunteer: code.includes("EM") };
+}
+function getCommitteeStudents() {
+  const role = $("#committee-role-filter").value, query = $("#committee-search").value.trim().toLocaleLowerCase();
+  return sortByStudentId(state.students.filter((student) => {
+    const roles = committeeRoles(student);
+    if (!roles.admin && !roles.volunteer) return false;
+    if (role === "ADM" && !roles.admin || role === "EM" && !roles.volunteer) return false;
+    if (!query) return true;
+    const text = [student.student_id, student.full_name, student.class, student.section, student.student_contact_number,
+      student.email_address, batchLabelsForStudent(student.student_id)].filter((value) => value != null).join(" ").toLocaleLowerCase();
+    return text.includes(query);
+  }));
+}
+function renderCommittee() {
+  if (!$("#committee-table-body")) return;
+  const admins = state.students.filter((student) => committeeRoles(student).admin).length;
+  const volunteers = state.students.filter((student) => committeeRoles(student).volunteer).length;
+  $("#committee-admin-count").textContent = String(admins);
+  $("#committee-volunteer-count").textContent = String(volunteers);
+  const filtered = getCommitteeStudents();
+  $("#committee-result-count").textContent = filtered.length + (filtered.length === 1 ? " person" : " people");
+  $("#committee-empty").hidden = filtered.length > 0;
+  $("#committee-table-body").innerHTML = filtered.map((student) => {
+    const roles = committeeRoles(student), labels = [];
+    if (roles.admin) labels.push('<span class="committee-role admin">Administrator · ADM</span>');
+    if (roles.volunteer) labels.push('<span class="committee-role volunteer">Helping volunteer · EM</span>');
+    return "<tr><td>" + labels.join(" ") + "</td><td><span class=\"id-badge\">" + escapeHtml(student.student_id) + "</span></td><td><strong>" + escapeHtml(displayValue(student.full_name)) +
+      "</strong></td><td>" + escapeHtml(displayValue(student.class)) + " / " + escapeHtml(displayValue(student.section)) + "</td><td>" + phoneCell(student.student_contact_number) +
+      "</td><td>" + escapeHtml(displayValue(student.email_address)) + "</td><td>" + escapeHtml(batchLabelsForStudent(student.student_id) || "—") +
+      '</td><td><button class="table-action" type="button" data-committee-view="' + encodeURIComponent(student.student_id) + '">View</button></td></tr>';
+  }).join("");
+}
+$("#committee-search").addEventListener("input", renderCommittee);
+$("#committee-role-filter").addEventListener("change", renderCommittee);
+$("#committee-table-body").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-committee-view]"); if (!button) return;
+  const student = state.students.find((record) => record.student_id === decodeURIComponent(button.dataset.committeeView));
+  if (student) openStudentProfile(student);
+});
+$("#export-committee-csv").addEventListener("click", () => {
+  const rows = getCommitteeStudents();
+  if (!rows.length) { showToast("There are no matching committee or volunteer records to export.", "error"); return; }
+  if (!window.confirm("This CSV includes student contact details. Save it only on a private device. Continue?")) return;
+  const columns = [["role", "Role"], ...TABLE_FIELDS];
+  const csv = columns.map(([, label]) => csvEscape(label)).concat([csvEscape("Batches")]).join(",") + "\r\n" + rows.map((student) => {
+    const roles = committeeRoles(student), role = [roles.admin ? "Administrator (ADM)" : "", roles.volunteer ? "Helping volunteer (EM)" : ""].filter(Boolean).join("; ");
+    return columns.map(([key]) => csvEscape(key === "role" ? role : student[key])).concat([csvEscape(batchLabelsForStudent(student.student_id))]).join(",");
+  }).join("\r\n");
+  downloadFile("committee-volunteers-" + new Date().toISOString().slice(0, 10) + ".csv", csv, "text/csv;charset=utf-8");
+});
 $("#student-search").addEventListener("input", renderStudents);
 $("#apply-filters").addEventListener("click", renderStudents);
 $("#clear-filters").addEventListener("click", () => {

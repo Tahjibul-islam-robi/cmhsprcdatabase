@@ -19,6 +19,7 @@
       <nav class="side-nav" aria-label="Main navigation">
         <button class="nav-item active" type="button" data-page="overview"><span class="nav-icon">◫</span> Overview</button>
         <button class="nav-item" type="button" data-page="students"><span class="nav-icon">◎</span> Students</button>
+        <button class="nav-item" type="button" data-page="committee"><span class="nav-icon">♧</span> Committee & volunteers</button>
         <button class="nav-item" type="button" data-page="batches"><span class="nav-icon">▦</span> Batches</button>
         <button class="nav-item" type="button" data-page="resources"><span class="nav-icon">▤</span> Blog & materials</button>
         <button class="nav-item" type="button" data-page="attendance"><span class="nav-icon">✓</span> Attendance</button>
@@ -57,6 +58,12 @@
             <div class="table-scroll"><table><thead><tr><th>Student ID</th><th>Full name</th><th>Class</th><th>Section</th><th>Roll</th><th>Batches</th><th>Student phone</th><th>Guardian phone</th><th>Actions</th></tr></thead><tbody id="student-table-body"></tbody></table></div>
             <div class="empty-state" id="student-empty" hidden><span>⌕</span><strong>No matching students</strong><p>Try a different search or clear your filters.</p></div>
           </div>
+        </section>
+        <section class="page-section" data-section="committee" hidden>
+          <div class="section-intro"><div><h2>Committee & helping volunteers</h2><p>Roles are identified automatically from student IDs: ADM for administrators and EM for helping volunteers.</p></div><button class="button outline" id="export-committee-csv" type="button">Export filtered CSV</button></div>
+          <div class="stat-grid committee-stats"><article class="stat-card"><span class="stat-label">Administrators</span><strong id="committee-admin-count">0</strong><span class="stat-foot">IDs containing ADM</span><span class="stat-icon violet">A</span></article><article class="stat-card"><span class="stat-label">Helping volunteers</span><strong id="committee-volunteer-count">0</strong><span class="stat-foot">IDs containing EM</span><span class="stat-icon green">V</span></article></div>
+          <div class="panel filters-panel committee-filters"><div class="search-row"><label class="search-box"><span>⌕</span><input id="committee-search" type="search" placeholder="Search name, ID, phone, class…"></label><label class="committee-role-filter">Role<select id="committee-role-filter"><option value="all">All committee & volunteers</option><option value="ADM">Administrators (ADM)</option><option value="EM">Helping volunteers (EM)</option></select></label></div></div>
+          <div class="panel table-panel"><div class="table-heading"><div><h3>People</h3><p id="committee-result-count">Loading records…</p></div></div><div class="table-scroll"><table><thead><tr><th>Role</th><th>Student ID</th><th>Name</th><th>Class / section</th><th>Phone</th><th>Email</th><th>Batches</th><th>Record</th></tr></thead><tbody id="committee-table-body"></tbody></table></div><div class="empty-state compact" id="committee-empty" hidden><strong>No matching committee members</strong><p>Check the role filter or student ID codes.</p></div></div>
         </section>
         <section class="page-section" data-section="batches" hidden>
           <div class="section-intro"><div><h2>Batch management</h2><p>Create numbered groups, then add students by entering their exact IDs.</p></div><button class="button primary" id="new-batch-button" type="button">＋ Add batch</button></div>
