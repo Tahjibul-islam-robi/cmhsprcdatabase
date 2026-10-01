@@ -45,14 +45,16 @@ create index if not exists batch_students_student_idx on public.batch_students (
 -- is the only account allowed to change these assignments.
 create table if not exists public.committee_positions (
   student_id text primary key references public.students(student_id) on delete cascade,
-  position text not null check (position in (
-    'President', 'Vice President', 'General Secretary', 'Joint Secretary', 'Treasurer',
-    'Organizing Secretary', 'IT Secretary', 'Publicity Secretary', 'Executive Member',
-    'Volunteer Coordinator', 'Event Volunteer', 'Technical Volunteer', 'Content Volunteer'
-  )),
+  position text not null,
   updated_at timestamptz not null default now(),
   updated_by uuid references auth.users(id)
 );
+alter table public.committee_positions drop constraint if exists committee_positions_position_check;
+alter table public.committee_positions add constraint committee_positions_position_check check (position in (
+  'President', 'Vice President', 'General Secretary', 'Joint Secretary', 'Treasurer',
+  'Organizing Secretary', 'IT Secretary', 'Publicity Secretary', 'Trainer', 'Assistant Trainer',
+  'Executive Member', 'Volunteer Coordinator', 'Event Volunteer', 'Technical Volunteer', 'Content Volunteer'
+));
 
 -- Private authorization link, synced from the email saved on student ADM001
 -- to the matching Supabase Auth account when this schema runs.

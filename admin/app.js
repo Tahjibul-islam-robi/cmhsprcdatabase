@@ -21,7 +21,7 @@ const RESOURCE_MIME_TYPES = {
   txt: "text/plain", csv: "text/csv", zip: "application/zip", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp"
 };
 const RESOURCE_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp";
-const COMMITTEE_POSITIONS = ["President", "Vice President", "General Secretary", "Joint Secretary", "Treasurer", "Organizing Secretary", "IT Secretary", "Publicity Secretary", "Executive Member", "Volunteer Coordinator", "Event Volunteer", "Technical Volunteer", "Content Volunteer"];
+const COMMITTEE_POSITIONS = ["President", "Vice President", "General Secretary", "Joint Secretary", "Treasurer", "Organizing Secretary", "IT Secretary", "Publicity Secretary", "Trainer", "Assistant Trainer", "Executive Member", "Volunteer Coordinator", "Event Volunteer", "Technical Volunteer", "Content Volunteer"];
 const state = { client: null, userId: "", isCommitteeManager: false, committeePositions: [], students: [], batches: [], memberships: [], sessions: [], attendance: [], resources: [], resourcesError: null, page: "overview",
   currentStudent: null, editingId: null, selectedSessionId: "", selectedBatchId: "", pendingImport: [], pendingImportAttendance: [], filteredStudents: [] };
 const $ = (selector) => document.querySelector(selector);
@@ -759,6 +759,7 @@ function sessionBatchLabel(session) {
   return batch ? "Batch #" + batch.batch_number + " · " + batch.name : "Batch unavailable";
 }
 function renderAttendance() {
+  fillBatchIdSelect($("#attendance-export-batch"));
   const select = $("#attendance-session-select"), prior = state.selectedSessionId || select.value;
   select.innerHTML = "";
   if (!state.sessions.length) { select.innerHTML = '<option value="">No meetings yet</option>'; state.selectedSessionId = ""; }
@@ -949,8 +950,8 @@ function spreadsheetColumn(index) {
   for (let number = index + 1; number; number = Math.floor((number - 1) / 26)) name = String.fromCharCode(65 + ((number - 1) % 26)) + name;
   return name;
 }
-function spreadsheetXml(rows) {
-  const values = [BATCH_EXPORT_FIELDS.map(([, label]) => label), ...rows.map((row) => BATCH_EXPORT_FIELDS.map(([key]) => row[key]))];
+function spreadsheetXml(rows, fields) {
+  const values = [fields.map(([, label]) => label), ...rows.map((row) => fields.map(([key]) => row[key]))];
   const sheetRows = values.map((row, rowIndex) => "<row r=\"" + (rowIndex + 1) + "\">" + row.map((value, columnIndex) =>
     "<c r=\"" + spreadsheetColumn(columnIndex) + (rowIndex + 1) + "\" t=\"inlineStr\"><is><t xml:space=\"preserve\">" + xmlEscape(value) + "</t></is></c>").join("") + "</row>").join("");
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' + sheetRows + "</sheetData></worksheet>";
@@ -969,13 +970,15 @@ function concatenateBytes(chunks) {
   chunks.forEach((chunk) => { result.set(chunk, offset); offset += chunk.length; });
   return result;
 }
-function makeXlsxBlob(rows) {
+function makeXlsxBlob(rows, fields, worksheetName) {
+  const exportFields = fields || BATCH_EXPORT_FIELDS;
+  const safeSheetName = String(worksheetName || "Batch roster").replace(/[\\/:*?\[\]]/g, " ").slice(0, 31) || "Sheet1";
   const encoder = new TextEncoder(), files = [
     ["[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
     ["_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
-    ["xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Batch roster" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+    ["xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + xmlEscape(safeSheetName) + '" sheetId="1" r:id="rId1"/></sheets></workbook>'],
     ["xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'],
-    ["xl/worksheets/sheet1.xml", spreadsheetXml(rows)]
+    ["xl/worksheets/sheet1.xml", spreadsheetXml(rows, exportFields)]
   ];
   const localParts = [], centralParts = [];
   let localOffset = 0;
@@ -1036,6 +1039,57 @@ $("#export-attendance-csv").addEventListener("click", () => {
     return [session.session_date, session.title, sessionBatchLabel(session), student.student_id, student.full_name, student.class, student.section, record.status]; });
   const csv = [headers.map(csvEscape).join(",")].concat(rows.map((row) => row.map(csvEscape).join(","))).join("\r\n");
   downloadFile("club-attendance-" + new Date().toISOString().slice(0, 10) + ".csv", csv, "text/csv;charset=utf-8");
+});
+$("#export-batch-attendance-xlsx").addEventListener("click", () => {
+  const batchId = $("#attendance-export-batch").value;
+  const batch = state.batches.find((item) => item.id === batchId);
+  if (!batch) { showToast("Choose a batch first.", "error"); return; }
+  const memberIds = new Set(state.memberships.filter((membership) => membership.batch_id === batch.id).map((membership) => membership.student_id));
+  const students = sortByStudentId(state.students.filter((student) => memberIds.has(student.student_id)));
+  if (!students.length) { showToast("This batch has no students to include.", "error"); return; }
+  const sessions = state.sessions.filter((session) => session.batch_id === batch.id)
+    .slice().sort((a, b) => String(a.session_date).localeCompare(String(b.session_date)) || String(a.title).localeCompare(String(b.title)));
+  if (!sessions.length) { showToast("This batch has no attendance meetings yet.", "error"); return; }
+  if (!window.confirm("Download attendance for " + students.length + " students across " + sessions.length + " meetings in " + batch.name + "? The workbook contains student names and attendance records. Save it only on a private device.")) return;
+
+  const meetingFields = sessions.map((session, index) => ["meeting_" + index, String(session.session_date || "Date unknown") + " · " + String(session.title || "Meeting")]);
+  const fields = [
+    ["batch_name", "Batch"], ["batch_number", "Batch number"],
+    ["student_id", "Student ID"], ["full_name", "Student name"],
+    ["class", "Class"], ["section", "Section"],
+    ...meetingFields,
+    ["present_count", "Present"], ["late_count", "Late"],
+    ["absent_count", "Absent"], ["not_marked_count", "Not marked"],
+    ["attendance_rate", "Attendance rate"]
+  ];
+  const sessionIds = new Set(sessions.map((session) => session.id));
+  const recordsByStudent = new Map();
+  state.attendance.filter((record) => sessionIds.has(record.session_id)).forEach((record) => {
+    if (!recordsByStudent.has(record.student_id)) recordsByStudent.set(record.student_id, new Map());
+    recordsByStudent.get(record.student_id).set(record.session_id, record.status);
+  });
+  const rows = students.map((student) => {
+    const bySession = recordsByStudent.get(student.student_id) || new Map();
+    const statuses = sessions.map((session) => bySession.get(session.id) || "Not marked");
+    const present = statuses.filter((status) => status === "Present").length;
+    const late = statuses.filter((status) => status === "Late").length;
+    const absent = statuses.filter((status) => status === "Absent").length;
+    const notMarked = statuses.filter((status) => status === "Not marked").length;
+    const row = {
+      batch_name: batch.name, batch_number: String(batch.batch_number),
+      student_id: student.student_id, full_name: student.full_name || "",
+      class: student.class || "", section: student.section || "",
+      present_count: String(present), late_count: String(late),
+      absent_count: String(absent), not_marked_count: String(notMarked),
+      attendance_rate: Math.round((present + late) / sessions.length * 100) + "%"
+    };
+    meetingFields.forEach(([key], index) => { row[key] = statuses[index]; });
+    return row;
+  });
+  const slug = String(batch.name || "batch").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "batch";
+  const filename = "batch-" + batch.batch_number + "-" + slug + "-attendance-" + new Date().toISOString().slice(0, 10) + ".xlsx";
+  downloadFile(filename, makeXlsxBlob(rows, fields, "Attendance"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  showToast("Batch attendance workbook downloaded.", "success");
 });
 
 function normalizeDate(value) {
