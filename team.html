@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07111f">
+  <meta name="description" content="Meet the delegates, administrators, trainers, and assistant trainers of the CMHS Programming and Robotics Club.">
+  <title>Club Team | CMHS Programming & Robotics Club</title>
+  <link rel="icon" href="./logo.png">
+  <link rel="stylesheet" href="./portal.css">
+  <link rel="stylesheet" href="./team.css">
+  <script src="./admin/config.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Club home"><img src="./logo.png" alt="Club logo"><span>Cumilla Modern High School<br><strong>Programming And Robotics Club</strong></span></a>
+    <nav><a href="./">Batch blog</a><a href="./cmhsprc/">Club rules</a><a href="./admin/">Admin</a></nav>
+  </header>
+  <main class="page-wrap team-page">
+    <section class="hero">
+      <p class="eyebrow">OUR PEOPLE</p>
+      <h1>Meet the <span>club team.</span></h1>
+      <p>Delegates, administrators, and the trainers helping our members learn and build.</p>
+    </section>
+    <p id="team-status" class="status" role="status" aria-live="polite"></p>
+    <div class="team-grid">
+      <section class="team-card" aria-labelledby="delegates-title">
+        <div class="team-card-heading"><div><p class="eyebrow">REPRESENTATIVES</p><h2 id="delegates-title">Delegates</h2></div><span id="delegates-count" class="count">—</span></div>
+        <ul id="delegates-list" class="team-list"><li class="team-empty">Loading…</li></ul>
+      </section>
+      <section class="team-card" aria-labelledby="admins-title">
+        <div class="team-card-heading"><div><p class="eyebrow">CLUB ADMINISTRATION</p><h2 id="admins-title">Administrators</h2></div><span id="admins-count" class="count">—</span></div>
+        <ul id="admins-list" class="team-list"><li class="team-empty">Loading…</li></ul>
+      </section>
+      <section class="team-card" aria-labelledby="trainers-title">
+        <div class="team-card-heading"><div><p class="eyebrow">LEARNING TEAM</p><h2 id="trainers-title">Trainers</h2></div><span id="trainers-count" class="count">—</span></div>
+        <ul id="trainers-list" class="team-list"><li class="team-empty">Loading…</li></ul>
+      </section>
+      <section class="team-card" aria-labelledby="assistant-trainers-title">
+        <div class="team-card-heading"><div><p class="eyebrow">LEARNING TEAM</p><h2 id="assistant-trainers-title">Assistant Trainers</h2></div><span id="assistant-trainers-count" class="count">—</span></div>
+        <ul id="assistant-trainers-list" class="team-list"><li class="team-empty">Loading…</li></ul>
+      </section>
+    </div>
+    <p class="team-privacy-note">This page shows names and public-facing roles only. Student IDs and contact details are not displayed.</p>
+  </main>
+  <footer><span>Cumilla Modern High School Programming And Robotics Club</span><span>Club team</span></footer>
+  <script type="module" src="./team.js"></script>
+</body>
+</html>

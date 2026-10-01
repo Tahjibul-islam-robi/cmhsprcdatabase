@@ -52,7 +52,7 @@ create table if not exists public.committee_positions (
 alter table public.committee_positions drop constraint if exists committee_positions_position_check;
 alter table public.committee_positions add constraint committee_positions_position_check check (position in (
   'President', 'Vice President', 'General Secretary', 'Joint Secretary', 'Treasurer',
-  'Organizing Secretary', 'IT Secretary', 'Publicity Secretary', 'Trainer', 'Assistant Trainer',
+  'Organizing Secretary', 'IT Secretary', 'Publicity Secretary', 'Delegate', 'Trainer', 'Assistant Trainer',
   'Executive Member', 'Volunteer Coordinator', 'Event Volunteer', 'Technical Volunteer', 'Content Volunteer'
 ));
 
@@ -281,6 +281,54 @@ as $body$
 $body$;
 revoke all on function public.get_public_batch_resources() from public, anon, authenticated;
 grant execute on function public.get_public_batch_resources() to anon, authenticated;
+
+-- Public team page: only a student's name and team category are returned.
+create or replace function public.get_public_club_team()
+returns table (
+  team_role text,
+  full_name text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $body$
+  select 'Delegate'::text, student.full_name
+  from public.students as student
+  join public.committee_positions as cp
+    on cp.student_id = student.student_id
+  where cp.position = 'Delegate'
+
+  union all
+
+  select 'Administrator (ADM)'::text, student.full_name
+  from public.students as student
+  where upper(student.student_id) like '%ADM%'
+
+  union all
+
+  select 'Trainer (EM)'::text, student.full_name
+  from public.students as student
+  join public.committee_positions as cp
+    on cp.student_id = student.student_id
+  where upper(student.student_id) like '%EM%'
+    and cp.position = 'Trainer'
+
+  union all
+
+  select 'Assistant Trainer (EM)'::text, student.full_name
+  from public.students as student
+  join public.committee_positions as cp
+    on cp.student_id = student.student_id
+  where upper(student.student_id) like '%EM%'
+    and cp.position = 'Assistant Trainer'
+
+  order by 1, 2;
+$body$;
+revoke all on function public.get_public_club_team()
+  from public, anon, authenticated;
+grant execute on function public.get_public_club_team()
+  to anon, authenticated;
 
 -- Published files are intentionally public. Mutations stay behind the same
 -- signed-in administrator role used by the private admin panel.

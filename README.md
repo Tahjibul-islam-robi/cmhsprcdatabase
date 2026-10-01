@@ -11,6 +11,7 @@ This folder is the website package to upload to GitHub Pages. It contains the pu
 - Numbered batches with student membership managed by exact student IDs.
 - Public batch blog with announcements/notices and full class-material articles written and edited directly in Admin. Rich formatting supports headings, lists, links, quotes, and code blocks; file attachments are optional for article posts.
 - Public batch rosters show only full names and student IDs. Student contact details, addresses, and guardian information remain in protected tables and are not returned by the public portal.
+- Public Club Team page lists delegate names, ADM administrators, and EM trainers/assistant trainers; the public RPC returns names and role labels only.
 - Public files are stored in the `club-materials` bucket; announcement attachments must be PDF. Upload limit is 25 MB per file.
 - Export the selected batch roster as Excel (.xlsx), CSV, or JSON, with all student profile fields and a privacy confirmation.
 - Batch-specific meeting attendance (Present, Absent, Late) and summaries.
@@ -35,7 +36,7 @@ The app imports student ID, name, class, section, roll, date of birth, gender, s
 
 ## GitHub Pages upload
 
-Upload the contents of this github-upload folder to the root of a GitHub repository, then enable GitHub Pages for the repository. The root URL is the public batch blog; the admin app URL ends in /admin/ and the existing rules page is at /cmhsprc/. Apply the updated Supabase schema before using the blog editor or portal.
+Upload the contents of this github-upload folder to the root of a GitHub repository, then enable GitHub Pages for the repository. The root URL is the public batch blog; the public team page is /team.html, the admin app URL ends in /admin/, and the existing rules page is at /cmhsprc/. Apply the updated Supabase schema before using the blog editor, team page, or portal.
 
 The code is public website code. Student records remain in Supabase and are never included in this folder. Because this portal is open to anyone, names and student IDs assigned to batches, published posts, and uploaded files are public. Never publish phone numbers, addresses, guardian details, or files containing private student information. If you add a custom domain or change hosting later, keep the admin login and database access policies enabled.
 
