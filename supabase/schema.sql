@@ -41,6 +41,56 @@ create table if not exists public.batch_students (
 );
 create index if not exists batch_students_student_idx on public.batch_students (student_id);
 
+-- Specific committee/volunteer appointments. The ADM001-linked Supabase user
+-- is the only account allowed to change these assignments.
+create table if not exists public.committee_positions (
+  student_id text primary key references public.students(student_id) on delete cascade,
+  position text not null check (position in (
+    'President', 'Vice President', 'General Secretary', 'Joint Secretary', 'Treasurer',
+    'Organizing Secretary', 'IT Secretary', 'Publicity Secretary', 'Executive Member',
+    'Volunteer Coordinator', 'Event Volunteer', 'Technical Volunteer', 'Content Volunteer'
+  )),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+-- Private authorization link, synced from the email saved on student ADM001
+-- to the matching Supabase Auth account when this schema runs.
+create table if not exists public.committee_role_managers (
+  student_id text primary key check (student_id = 'ADM001'),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  manager_email text not null,
+  linked_at timestamptz not null default now()
+);
+alter table public.committee_role_managers enable row level security;
+revoke all on public.committee_role_managers from anon, authenticated;
+
+insert into public.committee_role_managers (student_id, user_id, manager_email, linked_at)
+select 'ADM001', account.id, lower(trim(account.email)), now()
+from public.students as student
+join auth.users as account on lower(trim(account.email)) = lower(trim(student.email_address))
+where student.student_id = 'ADM001'
+  and nullif(trim(student.email_address), '') is not null
+on conflict (student_id) do update
+set user_id = excluded.user_id,
+    manager_email = excluded.manager_email,
+    linked_at = excluded.linked_at;
+
+create or replace function public.is_committee_role_manager()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $body$
+  select exists (
+    select 1 from public.committee_role_managers as manager
+    where manager.student_id = 'ADM001' and manager.user_id = auth.uid()
+  );
+$body$;
+revoke all on function public.is_committee_role_manager() from public, anon, authenticated;
+grant execute on function public.is_committee_role_manager() to authenticated;
+
 create table if not exists public.batch_resources (
   id uuid primary key default gen_random_uuid(),
   batch_id uuid not null references public.batches(id) on delete cascade,
@@ -131,18 +181,21 @@ for each row execute function public.set_updated_at();
 alter table public.students enable row level security;
 alter table public.batches enable row level security;
 alter table public.batch_students enable row level security;
+alter table public.committee_positions enable row level security;
 alter table public.batch_resources enable row level security;
 alter table public.attendance_sessions enable row level security;
 alter table public.attendance_records enable row level security;
 revoke all on public.students from anon, authenticated;
 revoke all on public.batches from anon, authenticated;
 revoke all on public.batch_students from anon, authenticated;
+revoke all on public.committee_positions from anon, authenticated;
 revoke all on public.batch_resources from anon, authenticated;
 revoke all on public.attendance_sessions from anon, authenticated;
 revoke all on public.attendance_records from anon, authenticated;
 grant select, insert, update, delete on public.students to authenticated;
 grant select, insert, update, delete on public.batches to authenticated;
 grant select, insert, update, delete on public.batch_students to authenticated;
+grant select, insert, update, delete on public.committee_positions to authenticated;
 grant select, insert, update, delete on public.batch_resources to authenticated;
 grant usage, select on sequence public.batches_batch_number_seq to authenticated;
 revoke all on sequence public.batches_batch_number_seq from anon;
@@ -158,6 +211,12 @@ using (auth.uid() is not null) with check (auth.uid() is not null);
 drop policy if exists "Admins manage batch students" on public.batch_students;
 create policy "Admins manage batch students" on public.batch_students for all to authenticated
 using (auth.uid() is not null) with check (auth.uid() is not null);
+drop policy if exists "ADM001 reads committee positions" on public.committee_positions;
+create policy "ADM001 reads committee positions" on public.committee_positions for select to authenticated
+using (public.is_committee_role_manager());
+drop policy if exists "ADM001 manages committee positions" on public.committee_positions;
+create policy "ADM001 manages committee positions" on public.committee_positions for all to authenticated
+using (public.is_committee_role_manager()) with check (public.is_committee_role_manager());
 drop policy if exists "Admins manage batch resources" on public.batch_resources;
 create policy "Admins manage batch resources" on public.batch_resources for all to authenticated
 using (auth.uid() is not null) with check (auth.uid() is not null);

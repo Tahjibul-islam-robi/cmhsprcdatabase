@@ -21,7 +21,8 @@ const RESOURCE_MIME_TYPES = {
   txt: "text/plain", csv: "text/csv", zip: "application/zip", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp"
 };
 const RESOURCE_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp";
-const state = { client: null, userId: "", students: [], batches: [], memberships: [], sessions: [], attendance: [], resources: [], resourcesError: null, page: "overview",
+const COMMITTEE_POSITIONS = ["President", "Vice President", "General Secretary", "Joint Secretary", "Treasurer", "Organizing Secretary", "IT Secretary", "Publicity Secretary", "Executive Member", "Volunteer Coordinator", "Event Volunteer", "Technical Volunteer", "Content Volunteer"];
+const state = { client: null, userId: "", isCommitteeManager: false, committeePositions: [], students: [], batches: [], memberships: [], sessions: [], attendance: [], resources: [], resourcesError: null, page: "overview",
   currentStudent: null, editingId: null, selectedSessionId: "", selectedBatchId: "", pendingImport: [], pendingImportAttendance: [], filteredStudents: [] };
 const $ = (selector) => document.querySelector(selector);
 
@@ -97,6 +98,7 @@ function dateLabel(value) {
   return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" }).format(date);
 }
 function setPage(page) {
+  if (page === "committee" && !state.isCommitteeManager) { showToast("Only the ADM001-linked account can access Committee & volunteers.", "error"); page = "overview"; }
   state.page = page;
   document.querySelectorAll(".page-section").forEach((section) => { section.hidden = section.dataset.section !== page; });
   document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === page));
@@ -129,7 +131,9 @@ async function loadData() {
     state.client.from("batch_students").select("*"),
     state.client.from("attendance_sessions").select("*").order("session_date", { ascending: false }),
     state.client.from("attendance_records").select("*"),
-    state.client.from("batch_resources").select("*").order("created_at", { ascending: false })
+    state.client.from("batch_resources").select("*").order("created_at", { ascending: false }),
+    state.client.rpc("is_committee_role_manager"),
+    state.client.from("committee_positions").select("*")
   ]);
   const names = ["students", "batches", "batch memberships", "attendance sessions", "attendance"];
   for (let i = 0; i < names.length; i += 1) if (results[i].error) throw new Error(names[i] + ": " + results[i].error.message);
@@ -140,6 +144,11 @@ async function loadData() {
   state.attendance = results[4].data || [];
   state.resources = results[5].error ? [] : (results[5].data || []);
   state.resourcesError = results[5].error || null;
+  if (results[6].error) throw new Error("ADM001 account link: " + results[6].error.message + ". Run the updated supabase/schema.sql after confirming ADM001's email matches a Supabase Auth login.");
+  if (results[7].error) throw new Error("Committee positions: " + results[7].error.message + ". Run the updated supabase/schema.sql.");
+  state.isCommitteeManager = results[6].data === true;
+  state.committeePositions = state.isCommitteeManager ? (results[7].data || []) : [];
+  $("#committee-nav-item").hidden = !state.isCommitteeManager;
   if (!state.batches.some((batch) => batch.id === state.selectedBatchId)) state.selectedBatchId = state.batches[0] ? state.batches[0].id : "";
   renderDashboard(); renderStudents(); renderCommittee(); renderBatches(); renderResources(); renderAttendance(); renderReports(); renderQuality();
 }
@@ -150,7 +159,12 @@ function showApp(user) {
   loadData().catch((error) => showToast("Could not load private records. " + error.message, "error"));
 }
 function showLogin() {
-  state.userId = ""; state.students = []; state.batches = []; state.memberships = []; state.sessions = []; state.attendance = []; state.resources = []; state.resourcesError = null; state.filteredStudents = []; state.selectedBatchId = "";
+  state.userId = ""; state.isCommitteeManager = false; state.committeePositions = []; $("#committee-nav-item").hidden = true;
+  state.students = []; state.batches = []; state.memberships = []; state.sessions = []; state.attendance = []; state.resources = []; state.resourcesError = null; state.filteredStudents = []; state.selectedBatchId = "";
+  $("#committee-table-body").innerHTML = ""; state.page = "overview";
+  document.querySelectorAll(".page-section").forEach((section) => { section.hidden = section.dataset.section !== "overview"; });
+  document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === "overview"));
+  $("#page-title").textContent = "Overview";
   $("#admin-app").hidden = true; $("#login-view").hidden = false;
 }
 function initialize() {
@@ -283,7 +297,7 @@ function getCommitteeStudents() {
   }));
 }
 function renderCommittee() {
-  if (!$("#committee-table-body")) return;
+  if (!$("#committee-table-body") || !state.isCommitteeManager) return;
   const admins = state.students.filter((student) => committeeRoles(student).admin).length;
   const volunteers = state.students.filter((student) => committeeRoles(student).volunteer).length;
   $("#committee-admin-count").textContent = String(admins);
@@ -293,10 +307,13 @@ function renderCommittee() {
   $("#committee-empty").hidden = filtered.length > 0;
   $("#committee-table-body").innerHTML = filtered.map((student) => {
     const roles = committeeRoles(student), labels = [];
+    const assignment = state.committeePositions.find((item) => item.student_id === student.student_id), currentPosition = assignment ? assignment.position : "";
     if (roles.admin) labels.push('<span class="committee-role admin">Administrator · ADM</span>');
     if (roles.volunteer) labels.push('<span class="committee-role volunteer">Helping volunteer · EM</span>');
+    const positionOptions = ['<option value="">No specific position</option>'].concat(COMMITTEE_POSITIONS.map((position) => '<option value="' + escapeHtml(position) + '"' + (position === currentPosition ? " selected" : "") + ">" + escapeHtml(position) + "</option>"));
+    const positionControl = '<div class="committee-position-control"><select data-position-for="' + encodeURIComponent(student.student_id) + '" aria-label="Specific position for ' + escapeHtml(student.full_name) + '">' + positionOptions.join("") + '</select><button class="table-action" type="button" data-save-position="' + encodeURIComponent(student.student_id) + '">Save</button></div>';
     return "<tr><td>" + labels.join(" ") + "</td><td><span class=\"id-badge\">" + escapeHtml(student.student_id) + "</span></td><td><strong>" + escapeHtml(displayValue(student.full_name)) +
-      "</strong></td><td>" + escapeHtml(displayValue(student.class)) + " / " + escapeHtml(displayValue(student.section)) + "</td><td>" + phoneCell(student.student_contact_number) +
+      "</strong></td><td>" + escapeHtml(displayValue(student.class)) + " / " + escapeHtml(displayValue(student.section)) + "</td><td>" + positionControl + "</td><td>" + phoneCell(student.student_contact_number) +
       "</td><td>" + escapeHtml(displayValue(student.email_address)) + "</td><td>" + escapeHtml(batchLabelsForStudent(student.student_id) || "—") +
       '</td><td><button class="table-action" type="button" data-committee-view="' + encodeURIComponent(student.student_id) + '">View</button></td></tr>';
   }).join("");
@@ -304,18 +321,35 @@ function renderCommittee() {
 $("#committee-search").addEventListener("input", renderCommittee);
 $("#committee-role-filter").addEventListener("change", renderCommittee);
 $("#committee-table-body").addEventListener("click", (event) => {
+  const saveButton = event.target.closest("[data-save-position]");
+  if (saveButton) { saveCommitteePosition(saveButton); return; }
   const button = event.target.closest("[data-committee-view]"); if (!button) return;
   const student = state.students.find((record) => record.student_id === decodeURIComponent(button.dataset.committeeView));
   if (student) openStudentProfile(student);
 });
+async function saveCommitteePosition(button) {
+  if (!state.isCommitteeManager) { showToast("Only the ADM001-linked account can assign committee positions.", "error"); return; }
+  const studentId = decodeURIComponent(button.dataset.savePosition), select = button.parentElement.querySelector("select"), position = select.value;
+  button.disabled = true;
+  const result = position
+    ? await state.client.from("committee_positions").upsert({ student_id: studentId, position, updated_by: state.userId }, { onConflict: "student_id" })
+    : await state.client.from("committee_positions").delete().eq("student_id", studentId);
+  button.disabled = false;
+  if (result.error) { showToast("Position could not be saved: " + result.error.message, "error"); return; }
+  const refreshed = await state.client.from("committee_positions").select("*");
+  if (refreshed.error) { showToast("Position saved, but the list could not refresh: " + refreshed.error.message, "error"); return; }
+  state.committeePositions = refreshed.data || []; renderCommittee(); showToast(position ? "Committee position saved." : "Specific position removed.", "success");
+}
 $("#export-committee-csv").addEventListener("click", () => {
+  if (!state.isCommitteeManager) { showToast("Only the ADM001-linked account can access committee data.", "error"); return; }
   const rows = getCommitteeStudents();
   if (!rows.length) { showToast("There are no matching committee or volunteer records to export.", "error"); return; }
   if (!window.confirm("This CSV includes student contact details. Save it only on a private device. Continue?")) return;
-  const columns = [["role", "Role"], ...TABLE_FIELDS];
+  const columns = [["role", "Role"], ...TABLE_FIELDS, ["position", "Specific position"]];
   const csv = columns.map(([, label]) => csvEscape(label)).concat([csvEscape("Batches")]).join(",") + "\r\n" + rows.map((student) => {
     const roles = committeeRoles(student), role = [roles.admin ? "Administrator (ADM)" : "", roles.volunteer ? "Helping volunteer (EM)" : ""].filter(Boolean).join("; ");
-    return columns.map(([key]) => csvEscape(key === "role" ? role : student[key])).concat([csvEscape(batchLabelsForStudent(student.student_id))]).join(",");
+    const assignment = state.committeePositions.find((item) => item.student_id === student.student_id);
+    return columns.map(([key]) => csvEscape(key === "role" ? role : key === "position" ? (assignment ? assignment.position : "") : student[key])).concat([csvEscape(batchLabelsForStudent(student.student_id))]).join(",");
   }).join("\r\n");
   downloadFile("committee-volunteers-" + new Date().toISOString().slice(0, 10) + ".csv", csv, "text/csv;charset=utf-8");
 });
