@@ -16,13 +16,13 @@ async function loadTeam() {
   if (error) throw new Error("Could not load the club team. Run the latest supabase/schema.sql. " + error.message);
   const membersByRole = new Map(categories.map((category) => [category.role, []]));
   (data || []).forEach((member) => {
-    if (membersByRole.has(member.team_role)) membersByRole.get(member.team_role).push(member.full_name);
+    if (membersByRole.has(member.team_role)) membersByRole.get(member.team_role).push({ name: member.full_name, position: member.position_title });
   });
   categories.forEach((category) => {
-    const names = membersByRole.get(category.role).filter(Boolean).sort((a, b) => a.localeCompare(b));
-    document.querySelector("#" + category.count).textContent = String(names.length);
-    document.querySelector("#" + category.list).innerHTML = names.length
-      ? names.map((name) => "<li>" + escapeHtml(name) + "</li>").join("")
+    const people = membersByRole.get(category.role).filter((member) => member.name).sort((a, b) => a.name.localeCompare(b.name));
+    document.querySelector("#" + category.count).textContent = String(people.length);
+    document.querySelector("#" + category.list).innerHTML = people.length
+      ? people.map((member) => '<li><span class="team-person-name">' + escapeHtml(member.name) + '</span><span class="team-position-label">' + escapeHtml(member.position || category.role) + "</span></li>").join("")
       : '<li class="team-empty">' + escapeHtml(category.empty) + "</li>";
   });
 }

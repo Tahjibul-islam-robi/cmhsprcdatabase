@@ -282,18 +282,20 @@ $body$;
 revoke all on function public.get_public_batch_resources() from public, anon, authenticated;
 grant execute on function public.get_public_batch_resources() to anon, authenticated;
 
--- Public team page: only a student's name and team category are returned.
+-- Public team page returns names and assigned public-facing role titles only.
+drop function if exists public.get_public_club_team();
 create or replace function public.get_public_club_team()
 returns table (
   team_role text,
-  full_name text
+  full_name text,
+  position_title text
 )
 language sql
 stable
 security definer
 set search_path = ''
 as $body$
-  select 'Delegate'::text, student.full_name
+  select 'Delegate'::text, student.full_name, cp.position
   from public.students as student
   join public.committee_positions as cp
     on cp.student_id = student.student_id
@@ -301,13 +303,16 @@ as $body$
 
   union all
 
-  select 'Administrator (ADM)'::text, student.full_name
+  select 'Administrator (ADM)'::text, student.full_name,
+         coalesce(cp.position, 'Administrator (ADM)')::text
   from public.students as student
+  left join public.committee_positions as cp
+    on cp.student_id = student.student_id
   where upper(student.student_id) like '%ADM%'
 
   union all
 
-  select 'Trainer (EM)'::text, student.full_name
+  select 'Trainer (EM)'::text, student.full_name, cp.position
   from public.students as student
   join public.committee_positions as cp
     on cp.student_id = student.student_id
@@ -316,7 +321,7 @@ as $body$
 
   union all
 
-  select 'Assistant Trainer (EM)'::text, student.full_name
+  select 'Assistant Trainer (EM)'::text, student.full_name, cp.position
   from public.students as student
   join public.committee_positions as cp
     on cp.student_id = student.student_id
