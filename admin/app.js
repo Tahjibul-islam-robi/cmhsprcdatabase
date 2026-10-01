@@ -23,7 +23,7 @@ const RESOURCE_MIME_TYPES = {
 const RESOURCE_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp";
 const COMMITTEE_POSITIONS = ["President", "Vice President", "General Secretary", "Joint Secretary", "Treasurer", "Organizing Secretary", "IT Secretary", "Publicity Secretary", "Trainer", "Assistant Trainer", "Executive Member", "Volunteer Coordinator", "Event Volunteer", "Technical Volunteer", "Content Volunteer"];
 const state = { client: null, userId: "", isCommitteeManager: false, committeePositions: [], students: [], batches: [], memberships: [], sessions: [], attendance: [], resources: [], resourcesError: null, page: "overview",
-  currentStudent: null, editingId: null, selectedSessionId: "", selectedBatchId: "", pendingImport: [], pendingImportAttendance: [], filteredStudents: [] };
+  currentStudent: null, editingId: null, selectedSessionId: "", attendanceFilter: "All", selectedBatchId: "", pendingImport: [], pendingImportAttendance: [], filteredStudents: [] };
 const $ = (selector) => document.querySelector(selector);
 
 function escapeHtml(value) {
@@ -775,6 +775,7 @@ function renderAttendance() {
   $("#attendance-empty").hidden = true;
   const body = $("#attendance-table-body");
   if (!session) {
+    state.attendanceFilter = "All";
     body.innerHTML = ""; $("#attendance-counts").innerHTML = ""; $("#save-attendance").disabled = true;
     $("#apply-attendance-ids").disabled = true; $("#attendance-present-ids").value = "";
     $("#attendance-id-message").textContent = "Select or create a meeting first.";
@@ -795,7 +796,8 @@ function renderAttendance() {
   const counts = { Present: 0, Absent: 0, Late: 0, "Not marked": 0 };
   body.innerHTML = roster.map((student) => {
     const status = saved.get(student.student_id) || ""; counts[status || "Not marked"] += 1;
-    return "<tr><td><span class=\"id-badge\">" + escapeHtml(student.student_id) + "</span></td><td><strong>" + escapeHtml(displayValue(student.full_name)) +
+    const hidden = state.attendanceFilter !== "All" && state.attendanceFilter !== (status || "Not marked");
+    return "<tr" + (hidden ? " hidden" : "") + "><td><span class=\"id-badge\">" + escapeHtml(student.student_id) + "</span></td><td><strong>" + escapeHtml(displayValue(student.full_name)) +
       "</strong></td><td>" + escapeHtml(displayValue(student.class)) + " / " + escapeHtml(displayValue(student.section)) +
       '</td><td><select class="status-select" data-student-id="' + encodeURIComponent(student.student_id) + '"><option value="">Choose status</option>' +
       '<option value="Present"' + (status === "Present" ? " selected" : "") + '>Present</option><option value="Absent"' + (status === "Absent" ? " selected" : "") +
@@ -815,16 +817,20 @@ function renderSessionHistory() {
       '</small></div><span class="session-count">' + marked + "/" + rosterCount + "</span></div>";
   }).join("") : '<p class="helper-text">Your batch meetings will appear here.</p>';
 }
-$("#attendance-session-select").addEventListener("change", (event) => { state.selectedSessionId = event.target.value; renderAttendance(); });
-$("#session-history").addEventListener("click", (event) => { const item = event.target.closest("[data-session-id]"); if (item) { state.selectedSessionId = item.dataset.sessionId; renderAttendance(); } });
+$("#attendance-session-select").addEventListener("change", (event) => { state.selectedSessionId = event.target.value; state.attendanceFilter = "All"; renderAttendance(); });
+$("#session-history").addEventListener("click", (event) => { const item = event.target.closest("[data-session-id]"); if (item) { state.selectedSessionId = item.dataset.sessionId; state.attendanceFilter = "All"; renderAttendance(); } });
 $("#session-history").addEventListener("keydown", (event) => {
   if (event.key !== "Enter" && event.key !== " ") return;
-  const item = event.target.closest("[data-session-id]"); if (item) { event.preventDefault(); state.selectedSessionId = item.dataset.sessionId; renderAttendance(); }
+  const item = event.target.closest("[data-session-id]"); if (item) { event.preventDefault(); state.selectedSessionId = item.dataset.sessionId; state.attendanceFilter = "All"; renderAttendance(); }
+});
+$("#attendance-counts").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-attendance-filter]"); if (!button) return;
+  state.attendanceFilter = button.dataset.attendanceFilter; applyAttendanceFilter(); updateAttendanceCountsFromForm();
 });
 $("#attendance-table-body").addEventListener("change", () => {
   const statuses = Array.from(document.querySelectorAll("#attendance-table-body select")), missing = statuses.filter((select) => !select.value).length;
   $("#attendance-mark-status").textContent = missing ? missing + " student(s) still need a status." : "All students have a status.";
-  $("#save-attendance").disabled = missing > 0 || statuses.length === 0; updateAttendanceCountsFromForm();
+  $("#save-attendance").disabled = missing > 0 || statuses.length === 0; applyAttendanceFilter(); updateAttendanceCountsFromForm();
 });
 $("#apply-attendance-ids").addEventListener("click", () => {
   const rawIds = $("#attendance-present-ids").value.trim();
@@ -839,7 +845,7 @@ $("#apply-attendance-ids").addEventListener("click", () => {
     const id = decodeURIComponent(select.dataset.studentId);
     select.value = presentIds.has(id) ? "Present" : "Absent";
   });
-  updateAttendanceCountsFromForm();
+  applyAttendanceFilter(); updateAttendanceCountsFromForm();
   $("#attendance-mark-status").textContent = "IDs applied: " + presentIds.size + " present; " + (rosterIds.size - presentIds.size) + " absent. Save to record these changes.";
   $("#save-attendance").disabled = false;
   message.textContent = "Applied to this meeting’s roster. Check the table, then select Save attendance.";
@@ -847,11 +853,15 @@ $("#apply-attendance-ids").addEventListener("click", () => {
 function updateAttendanceCountsFromForm() {
   const counts = { Present: 0, Absent: 0, Late: 0, "Not marked": 0 };
   document.querySelectorAll("#attendance-table-body select").forEach((select) => { counts[select.value || "Not marked"] += 1; });
-  $("#attendance-counts").innerHTML =
-    '<span class="attendance-chip present">Present ' + counts.Present + "</span>" +
-    '<span class="attendance-chip absent">Absent ' + counts.Absent + "</span>" +
-    '<span class="attendance-chip late">Late ' + counts.Late + "</span>" +
-    '<span class="attendance-chip unmarked">Not marked ' + counts["Not marked"] + "</span>";
+  const options = [["All", "All", Object.values(counts).reduce((sum, count) => sum + count, 0), ""], ["Present", "Present", counts.Present, " present"], ["Absent", "Absent", counts.Absent, " absent"], ["Late", "Late", counts.Late, " late"], ["Not marked", "Not marked", counts["Not marked"], " unmarked"]];
+  $("#attendance-counts").innerHTML = options.map(([filter, label, count, style]) =>
+    '<button type="button" class="attendance-chip' + style + (state.attendanceFilter === filter ? " active" : "") + '" data-attendance-filter="' + filter + '" aria-pressed="' + (state.attendanceFilter === filter ? "true" : "false") + '">' + label + " " + count + "</button>").join("");
+}
+function applyAttendanceFilter() {
+  document.querySelectorAll("#attendance-table-body tr").forEach((row) => {
+    const select = row.querySelector("select"), status = select && select.value ? select.value : "Not marked";
+    row.hidden = state.attendanceFilter !== "All" && status !== state.attendanceFilter;
+  });
 }
 $("#new-session-button").addEventListener("click", () => {
   if (!state.batches.length) { setPage("batches"); showToast("Create a batch before starting batch attendance.", "error"); return; }
