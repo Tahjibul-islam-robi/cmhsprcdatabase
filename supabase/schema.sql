@@ -140,6 +140,7 @@ end;
 $migration$;
 create index if not exists batch_resources_batch_created_idx on public.batch_resources (batch_id, created_at desc);
 create index if not exists batch_resources_category_idx on public.batch_resources (category);
+create index if not exists batch_resources_public_feed_idx on public.batch_resources (batch_id, category, created_at desc, title);
 
 create table if not exists public.attendance_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -229,13 +230,32 @@ drop policy if exists "Admins manage attendance records" on public.attendance_re
 create policy "Admins manage attendance records" on public.attendance_records for all to authenticated
 using (auth.uid() is not null) with check (auth.uid() is not null);
 
--- The student portal uses these narrow public RPCs instead of reading the
--- private student, membership, or resource tables directly.
-create or replace function public.get_public_batches()
+-- The portal first loads batch summaries, then fetches only the selected
+-- batch's roster and a small page of posts.
+drop function if exists public.get_public_batches();
+create function public.get_public_batches()
 returns table (
   batch_id uuid,
   batch_number integer,
   batch_name text,
+  student_count integer
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $body$
+  select b.id, b.batch_number, b.name, count(bs.student_id)::integer
+  from public.batches as b
+  left join public.batch_students as bs on bs.batch_id = b.id
+  group by b.id
+  order by b.batch_number;
+$body$;
+revoke all on function public.get_public_batches() from public, anon, authenticated;
+grant execute on function public.get_public_batches() to anon, authenticated;
+
+create or replace function public.get_public_batch_roster(p_batch_id uuid)
+returns table (
   student_id text,
   full_name text
 )
@@ -244,16 +264,22 @@ stable
 security definer
 set search_path = ''
 as $body$
-  select b.id, b.batch_number, b.name, s.student_id, s.full_name
-  from public.batches as b
-  left join public.batch_students as bs on bs.batch_id = b.id
-  left join public.students as s on s.student_id = bs.student_id
-  order by b.batch_number, s.student_id nulls last;
+  select s.student_id, s.full_name
+  from public.batch_students as bs
+  join public.students as s on s.student_id = bs.student_id
+  where bs.batch_id = p_batch_id
+  order by s.student_id;
 $body$;
-revoke all on function public.get_public_batches() from public, anon, authenticated;
-grant execute on function public.get_public_batches() to anon, authenticated;
+revoke all on function public.get_public_batch_roster(uuid) from public, anon, authenticated;
+grant execute on function public.get_public_batch_roster(uuid) to anon, authenticated;
 
-create or replace function public.get_public_batch_resources()
+drop function if exists public.get_public_batch_resources();
+create or replace function public.get_public_batch_resources_page(
+  p_batch_id uuid,
+  p_category text,
+  p_limit integer default 10,
+  p_offset integer default 0
+)
 returns table (
   id uuid,
   batch_id uuid,
@@ -266,7 +292,8 @@ returns table (
   object_path text,
   content_type text,
   file_size bigint,
-  created_at timestamptz
+  created_at timestamptz,
+  total_count bigint
 )
 language sql
 stable
@@ -274,13 +301,20 @@ security definer
 set search_path = ''
 as $body$
   select r.id, r.batch_id, b.batch_number, b.name, r.category, r.title,
-         r.body, r.file_name, r.object_path, r.content_type, r.file_size, r.created_at
+         r.body, r.file_name, r.object_path, r.content_type, r.file_size,
+         r.created_at, count(*) over ()
   from public.batch_resources as r
   join public.batches as b on b.id = r.batch_id
-  order by r.created_at desc, r.title;
+  where r.batch_id = p_batch_id
+    and r.category = p_category
+  order by r.created_at desc, r.title
+  limit least(greatest(coalesce(p_limit, 10), 1), 40)
+  offset least(greatest(coalesce(p_offset, 0), 0), 100000);
 $body$;
-revoke all on function public.get_public_batch_resources() from public, anon, authenticated;
-grant execute on function public.get_public_batch_resources() to anon, authenticated;
+revoke all on function public.get_public_batch_resources_page(uuid, text, integer, integer)
+  from public, anon, authenticated;
+grant execute on function public.get_public_batch_resources_page(uuid, text, integer, integer)
+  to anon, authenticated;
 
 -- Public team page returns names and assigned public-facing role titles only.
 drop function if exists public.get_public_club_team();
