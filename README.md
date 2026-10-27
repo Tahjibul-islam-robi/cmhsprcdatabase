@@ -11,6 +11,8 @@ This folder is the website package to upload to GitHub Pages. It contains the pu
 - Numbered batches with student membership managed by exact student IDs.
 - Public batch blog with announcements/notices and full class-material articles written and edited directly in Admin. Rich formatting supports headings, lists, links, quotes, and code blocks; file attachments are optional for article posts.
 - Text-only notice maker with a live school-branded preview and browser Print / Save as PDF; the PDF can then be attached to an announcement in Admin.
+- Save announcement and class-material drafts privately in Admin, then publish them when ready. Drafts are text-only because uploaded attachments use public storage.
+- Shared Admin Plan note editable by all signed-in admins, plus an ADM001-only activity log for student and post changes. The log records action, time, admin email, record ID, and changed field names, but does not store private field values.
 - The public batch blog loads only the two newest announcements and two newest materials for the selected batch. Older posts are available in a separate archive page with batch/category filters and pagination.
 - Public batch rosters show only full names and student IDs. Student contact details, addresses, and guardian information remain in protected tables and are not returned by the public portal.
 - Public Club Team page lists delegate names, ADM administrators, and EM trainers/assistant trainers; the public RPC returns names and role labels only.
@@ -27,7 +29,7 @@ Students can belong to one or more batches. Batch attendance meetings include on
 ## Supabase setup and updates (Free plan)
 
 1. Create a Supabase account and a new Free project.
-2. In the Supabase SQL Editor, run the contents of supabase/schema.sql. When updating an existing project, rerun the complete updated file; it allows text-only class-material articles and creates the narrow public read functions and public file bucket while preserving existing student and attendance records.
+2. In the Supabase SQL Editor, run the contents of supabase/schema.sql. When updating an existing project, rerun the complete updated file; it adds draft publishing, the shared admin plan, the ADM001-only audit log, and creates the narrow public read functions and public file bucket while preserving existing student and attendance records.
 3. In Supabase Auth settings, turn off public user sign-ups. Create your administrator login from the Supabase dashboard.
 4. Open admin/config.js and set the project URL and publishable key. The publishable key is intended for browser apps. Never put a service-role or secret key in this file.
 5. Keep the database tables protected by the row-level security policies in the schema.

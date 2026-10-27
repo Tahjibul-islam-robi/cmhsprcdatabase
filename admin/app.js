@@ -22,7 +22,7 @@ const RESOURCE_MIME_TYPES = {
 };
 const RESOURCE_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp";
 const COMMITTEE_POSITIONS = ["President", "Vice President", "General Secretary", "Joint Secretary", "Treasurer", "Organizing Secretary", "IT Secretary", "Publicity Secretary", "Delegate", "Trainer", "Assistant Trainer", "Executive Member", "Volunteer Coordinator", "Event Volunteer", "Technical Volunteer", "Content Volunteer"];
-const state = { client: null, userId: "", isCommitteeManager: false, committeePositions: [], students: [], batches: [], memberships: [], sessions: [], attendance: [], resources: [], resourcesError: null, page: "overview",
+const state = { client: null, userId: "", isCommitteeManager: false, committeePositions: [], students: [], batches: [], memberships: [], sessions: [], attendance: [], resources: [], resourcesError: null, planUpdatedAt: null, page: "overview",
   currentStudent: null, editingId: null, selectedSessionId: "", attendanceFilter: "All", selectedBatchId: "", pendingImport: [], pendingImportAttendance: [], filteredStudents: [] };
 const $ = (selector) => document.querySelector(selector);
 
@@ -99,10 +99,11 @@ function dateLabel(value) {
 }
 function setPage(page) {
   if (page === "committee" && !state.isCommitteeManager) { showToast("Only the ADM001-linked account can access Committee & volunteers.", "error"); page = "overview"; }
+  if (page === "activity" && !state.isCommitteeManager) { showToast("Only the ADM001-linked account can access the activity log.", "error"); page = "overview"; }
   state.page = page;
   document.querySelectorAll(".page-section").forEach((section) => { section.hidden = section.dataset.section !== page; });
   document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === page));
-  const titles = { overview: "Overview", students: "Students", committee: "Committee & volunteers", batches: "Batches", resources: "Blog & materials", attendance: "Attendance", reports: "Reports", data: "Data quality", backup: "Import & backup" };
+  const titles = { overview: "Overview", students: "Students", committee: "Committee & volunteers", batches: "Batches", resources: "Blog & materials", attendance: "Attendance", reports: "Reports", data: "Data quality", plan: "Admin plan", activity: "Activity log", backup: "Import & backup" };
   $("#page-title").textContent = titles[page] || "Overview";
   if (page === "students") renderStudents();
   if (page === "committee") renderCommittee();
@@ -111,6 +112,8 @@ function setPage(page) {
   if (page === "attendance") renderAttendance();
   if (page === "reports") renderReports();
   if (page === "data") renderQuality();
+  if (page === "plan") loadAdminPlan();
+  if (page === "activity") loadActivityLog();
   if (page === "overview") renderDashboard();
 }
 function closeDialog(id) { const dialog = document.getElementById(id); if (dialog && dialog.open) dialog.close(); }
@@ -149,8 +152,36 @@ async function loadData() {
   state.isCommitteeManager = results[6].data === true;
   state.committeePositions = state.isCommitteeManager ? (results[7].data || []) : [];
   $("#committee-nav-item").hidden = !state.isCommitteeManager;
+  $("#activity-nav-item").hidden = !state.isCommitteeManager;
   if (!state.batches.some((batch) => batch.id === state.selectedBatchId)) state.selectedBatchId = state.batches[0] ? state.batches[0].id : "";
   renderDashboard(); renderStudents(); renderCommittee(); renderBatches(); renderResources(); renderAttendance(); renderReports(); renderQuality();
+}
+async function loadAdminPlan() {
+  const errorEl = $("#admin-plan-error"); if (!errorEl) return;
+  errorEl.hidden = true;
+  try {
+    const { data, error } = await state.client.from("admin_plan").select("content,updated_at").eq("id", 1).maybeSingle();
+    if (error) throw error;
+    $("#admin-plan-content").value = data ? data.content || "" : "";
+    state.planUpdatedAt = data ? data.updated_at : null;
+    $("#admin-plan-updated").textContent = data ? "Last saved " + new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.updated_at)) : "No shared plan saved yet.";
+  } catch (error) { errorEl.textContent = "Could not load the shared plan. Run the updated supabase/schema.sql. " + (error.message || "Connection failed."); errorEl.hidden = false; }
+}
+async function loadActivityLog() {
+  const body = $("#activity-table-body"); if (!body || !state.isCommitteeManager) return;
+  const errorEl = $("#activity-error"); errorEl.hidden = true;
+  try {
+    const { data, error } = await state.client.from("admin_activity_log").select("id,record_type,record_id,action,changed_fields,actor_email,logged_at").order("logged_at", { ascending: false }).limit(500);
+    if (error) throw error;
+    const rows = data || [];
+    $("#activity-count").textContent = rows.length + (rows.length === 500 ? "+ recent events" : rows.length === 1 ? " event" : " events");
+    $("#activity-empty").hidden = rows.length > 0;
+    body.innerHTML = rows.map((item) => {
+      const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.logged_at));
+      const fields = (item.changed_fields || []).map((field) => field.replaceAll("_", " ")).join(", ") || "—";
+      return "<tr><td>" + escapeHtml(when) + "</td><td>" + escapeHtml(item.actor_email || "Admin") + "</td><td>" + (item.record_type === "student" ? "Student" : "Post / material") + "</td><td>" + escapeHtml(item.record_id) + "</td><td>" + escapeHtml(item.action) + "</td><td>" + escapeHtml(fields) + "</td></tr>";
+    }).join("");
+  } catch (error) { errorEl.textContent = "Could not load activity. Run the updated supabase/schema.sql. " + (error.message || "Connection failed."); errorEl.hidden = false; body.innerHTML = ""; $("#activity-count").textContent = "Unavailable"; $("#activity-empty").hidden = true; }
 }
 function showApp(user) {
   $("#login-view").hidden = true; $("#admin-app").hidden = false; $("#user-email").textContent = user.email || "Administrator";
@@ -159,9 +190,9 @@ function showApp(user) {
   loadData().catch((error) => showToast("Could not load private records. " + error.message, "error"));
 }
 function showLogin() {
-  state.userId = ""; state.isCommitteeManager = false; state.committeePositions = []; $("#committee-nav-item").hidden = true;
+  state.userId = ""; state.isCommitteeManager = false; state.committeePositions = []; $("#committee-nav-item").hidden = true; $("#activity-nav-item").hidden = true; state.planUpdatedAt = null;
   state.students = []; state.batches = []; state.memberships = []; state.sessions = []; state.attendance = []; state.resources = []; state.resourcesError = null; state.filteredStudents = []; state.selectedBatchId = "";
-  $("#committee-table-body").innerHTML = ""; state.page = "overview";
+  $("#committee-table-body").innerHTML = ""; $("#activity-table-body").innerHTML = ""; $("#admin-plan-content").value = ""; state.page = "overview";
   document.querySelectorAll(".page-section").forEach((section) => { section.hidden = section.dataset.section !== "overview"; });
   document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === "overview"));
   $("#page-title").textContent = "Overview";
@@ -192,6 +223,20 @@ document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.add
 document.querySelectorAll("[data-go]").forEach((button) => button.addEventListener("click", () => setPage(button.dataset.go)));
 document.querySelectorAll("[data-open-add]").forEach((button) => button.addEventListener("click", () => openStudentForm(null)));
 document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => closeDialog(button.dataset.closeDialog)));
+
+$("#save-admin-plan").addEventListener("click", async () => {
+  const button = $("#save-admin-plan"), errorEl = $("#admin-plan-error");
+  button.disabled = true; errorEl.hidden = true;
+  try {
+    const { data, error } = await state.client.from("admin_plan").upsert({ id: 1, content: $("#admin-plan-content").value }, { onConflict: "id" }).select("updated_at").single();
+    if (error) throw error;
+    state.planUpdatedAt = data.updated_at;
+    $("#admin-plan-updated").textContent = "Last saved " + new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.updated_at));
+    showToast("Shared plan saved for all administrators.", "success");
+  } catch (error) { errorEl.textContent = "Could not save the shared plan. " + (error.message || "Run the updated Supabase schema."); errorEl.hidden = false; }
+  finally { button.disabled = false; }
+});
+$("#refresh-activity").addEventListener("click", () => loadActivityLog());
 
 function distinctSorted(values) {
   return Array.from(new Set(values.filter((value) => !emptyPlaceholder(value)).map((value) => String(value).trim())))
@@ -507,7 +552,8 @@ function renderResources() {
     error.textContent = "The materials database is not ready. Run the latest supabase/schema.sql in Supabase SQL Editor, then refresh the admin app. Details: " + state.resourcesError.message;
   }
   const resources = state.resources.slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-  $("#resource-list-count").textContent = state.resourcesError ? "Unavailable until setup is complete" : resources.length + (resources.length === 1 ? " published item" : " published items");
+  const draftCount = resources.filter((resource) => !resource.is_published).length;
+  $("#resource-list-count").textContent = state.resourcesError ? "Unavailable until setup is complete" : resources.length + (resources.length === 1 ? " item" : " items") + " · " + draftCount + " drafts";
   $("#resource-empty").hidden = resources.length > 0 || Boolean(state.resourcesError);
   body.innerHTML = resources.map((resource) => {
     const batch = state.batches.find((item) => item.id === resource.batch_id);
@@ -515,7 +561,7 @@ function renderResources() {
     const attachment = fileUrl ? '<a class="resource-file-link" href="' + escapeHtml(fileUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(resource.file_name || "Open file") + "</a>" : "—";
     const category = resource.category === "announcement" ? "Blog / notice" : "Class material article";
     return "<tr><td>" + category + "</td><td>" + escapeHtml(batch ? "#" + batch.batch_number + " · " + batch.name : "Batch") + "</td><td>" + escapeHtml(resource.title) +
-      "</td><td>" + attachment + "</td><td>" + escapeHtml(dateLabel(resource.created_at)) + '</td><td><div class="resource-row-actions"><button class="table-action" type="button" data-edit-resource="' + escapeHtml(resource.id) + '">Edit</button><button class="table-action delete-resource" type="button" data-delete-resource="' + escapeHtml(resource.id) + '">Delete</button></div></td></tr>';
+      "</td><td><span class=\"resource-status " + (resource.is_published ? "published" : "draft") + "\">" + (resource.is_published ? "Published" : "Draft") + "</span></td><td>" + attachment + "</td><td>" + escapeHtml(dateLabel(resource.updated_at || resource.created_at)) + '</td><td><div class="resource-row-actions"><button class="table-action" type="button" data-edit-resource="' + escapeHtml(resource.id) + '">Edit</button><button class="table-action delete-resource" type="button" data-delete-resource="' + escapeHtml(resource.id) + '">Delete</button></div></td></tr>';
   }).join("");
 }
 function updateResourceFormMode() {
@@ -533,6 +579,8 @@ function resetResourceForm() {
   $("#resource-category").disabled = false;
   $("#resource-form-heading").textContent = "Publish to a batch";
   $("#save-resource").textContent = "Publish";
+  $("#save-draft").textContent = "Save draft";
+  $("#save-resource").disabled = false; $("#save-draft").disabled = false;
   $("#cancel-resource-edit").hidden = true;
   $("#resource-existing-file").hidden = true;
   $("#resource-form-error").hidden = true;
@@ -549,8 +597,9 @@ function beginResourceEdit(resourceId) {
   $("#resource-body-editor").innerHTML = articleBodyForEditor(resource.body);
   $("#resource-body").value = sanitizeArticleHtml($("#resource-body-editor").innerHTML);
   $("#resource-file").value = "";
-  $("#resource-form-heading").textContent = "Edit published item";
-  $("#save-resource").textContent = "Save changes";
+  $("#resource-form-heading").textContent = resource.is_published ? "Edit published item" : "Edit draft";
+  $("#save-resource").textContent = resource.is_published ? "Save & publish" : "Publish";
+  $("#save-draft").textContent = "Save draft";
   $("#cancel-resource-edit").hidden = false;
   const fileInfo = $("#resource-existing-file");
   if (resource.object_path) {
@@ -602,20 +651,22 @@ $("#cancel-resource-edit").addEventListener("click", resetResourceForm);
 $("#resource-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const errorEl = $("#resource-form-error"); errorEl.hidden = true;
+  const isPublished = !event.submitter || event.submitter.dataset.published !== "false";
   const batchId = $("#resource-batch-id").value, category = $("#resource-category").value;
   const title = $("#resource-title").value.trim(), postBody = sanitizeArticleHtml($("#resource-body-editor").innerHTML);
   const bodyHasText = $("#resource-body-editor").innerText.trim().length > 0;
   const file = $("#resource-file").files && $("#resource-file").files[0];
   const editingId = $("#resource-id").value, existing = editingId ? state.resources.find((item) => item.id === editingId) : null;
-  if (!batchId) { errorEl.textContent = "Create a batch before publishing a post or material."; errorEl.hidden = false; return; }
+  if (!batchId) { errorEl.textContent = "Create a batch before saving a post or material."; errorEl.hidden = false; return; }
   if (!title) { errorEl.textContent = "Enter a title."; errorEl.hidden = false; return; }
-  if (category === "announcement" && !bodyHasText && !file && !(existing && existing.object_path)) { errorEl.textContent = "Write the post or attach a PDF notice."; errorEl.hidden = false; return; }
-  if (category === "material" && !bodyHasText && !file && !(existing && existing.object_path)) { errorEl.textContent = "Write the class material or attach a file."; errorEl.hidden = false; return; }
+  if (!isPublished && (file || (existing && existing.object_path))) { errorEl.textContent = "Drafts cannot have attachments because uploaded files are public. Save the text as a draft, then attach the file when you publish."; errorEl.hidden = false; return; }
+  if (isPublished && category === "announcement" && !bodyHasText && !file && !(existing && existing.object_path)) { errorEl.textContent = "Write the post or attach a PDF notice before publishing."; errorEl.hidden = false; return; }
+  if (isPublished && category === "material" && !bodyHasText && !file && !(existing && existing.object_path)) { errorEl.textContent = "Write the class material or attach a file before publishing."; errorEl.hidden = false; return; }
   let fileInfo;
   try { fileInfo = validateResourceFile(file, category); }
   catch (error) { errorEl.textContent = error.message; errorEl.hidden = false; return; }
 
-  const button = $("#save-resource"); button.disabled = true;
+  const button = $("#save-resource"); button.disabled = true; $("#save-draft").disabled = true;
   const oldPath = existing && existing.object_path;
   let newPath = null;
   let saved = false;
@@ -626,7 +677,7 @@ $("#resource-form").addEventListener("submit", async (event) => {
       if (uploaded.error) throw new Error("File upload failed: " + uploaded.error.message);
     }
     const payload = {
-      batch_id: batchId, category, title, body: postBody,
+      batch_id: batchId, category, title, body: postBody, is_published: isPublished,
       file_name: fileInfo ? fileInfo.fileName : (existing ? existing.file_name : null),
       object_path: newPath || (existing ? existing.object_path : null),
       content_type: fileInfo ? fileInfo.contentType : (existing ? existing.content_type : null),
@@ -644,19 +695,19 @@ $("#resource-form").addEventListener("submit", async (event) => {
     resetResourceForm();
     try { await loadData(); }
     catch (refreshError) { showToast("Published successfully, but the admin list could not refresh: " + refreshError.message, "error"); return; }
-    showToast(existing ? "Published item updated." : "Published to the selected batch.", "success");
+    showToast(isPublished ? (existing ? "Post published and saved." : "Post published to the selected batch.") : "Draft saved privately to Admin.", "success");
   } catch (error) {
     if (newPath && !saved) await state.client.storage.from(PUBLIC_RESOURCE_BUCKET).remove([newPath]);
     if (saved) showToast("The item was saved, but cleanup reported an error: " + (error.message || "unknown error"), "error");
     else { errorEl.textContent = error.message || "The item could not be saved."; errorEl.hidden = false; }
-  } finally { button.disabled = false; }
+  } finally { button.disabled = false; $("#save-draft").disabled = false; }
 });
 $("#resource-table-body").addEventListener("click", async (event) => {
   const editButton = event.target.closest("[data-edit-resource]");
   if (editButton) { beginResourceEdit(editButton.dataset.editResource); return; }
   const deleteButton = event.target.closest("[data-delete-resource]"); if (!deleteButton) return;
   const resource = state.resources.find((item) => item.id === deleteButton.dataset.deleteResource); if (!resource) return;
-  if (!window.confirm("Delete “" + resource.title + "” and its attachment from the public site?")) return;
+  if (!window.confirm(resource.is_published ? "Delete “" + resource.title + "” and its attachment from the public site?" : "Delete the draft “" + resource.title + "”?")) return;
   deleteButton.disabled = true;
   try {
     if (resource.object_path) {
@@ -666,8 +717,8 @@ $("#resource-table-body").addEventListener("click", async (event) => {
     const result = await state.client.from("batch_resources").delete().eq("id", resource.id);
     if (result.error) throw new Error("Could not delete the post record: " + result.error.message);
     if (resource.id === $("#resource-id").value) resetResourceForm();
-    await loadData(); showToast("Published item deleted.", "success");
-  } catch (error) { showToast(error.message || "Could not delete the published item.", "error"); deleteButton.disabled = false; }
+    await loadData(); showToast(resource.is_published ? "Published item deleted." : "Draft deleted.", "success");
+  } catch (error) { showToast(error.message || "Could not delete the item.", "error"); deleteButton.disabled = false; }
 });
 $("#new-batch-button").addEventListener("click", () => {
   $("#batch-form").reset(); $("#batch-form-error").hidden = true; openDialog("batch-dialog");

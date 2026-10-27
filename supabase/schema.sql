@@ -1,5 +1,5 @@
 -- Club Student Database schema for Supabase Free.
--- Run this once in the Supabase SQL Editor.
+-- Run the complete file in the Supabase SQL Editor for installation or updates.
 -- Intentionally excludes club status, interests, project teams, equipment,
 -- achievements, certificates, QR cards, and member task tracking.
 
@@ -93,12 +93,121 @@ $body$;
 revoke all on function public.is_committee_role_manager() from public, anon, authenticated;
 grant execute on function public.is_committee_role_manager() to authenticated;
 
+-- A single shared planning note, editable by any signed-in administrator.
+create table if not exists public.admin_plan (
+  id integer primary key default 1 check (id = 1),
+  content text not null default '',
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+insert into public.admin_plan (id, content) values (1, '') on conflict (id) do nothing;
+alter table public.admin_plan enable row level security;
+revoke all on public.admin_plan from anon, authenticated;
+grant select, insert, update on public.admin_plan to authenticated;
+drop policy if exists "Admins read shared plan" on public.admin_plan;
+create policy "Admins read shared plan" on public.admin_plan for select to authenticated
+using (auth.uid() is not null);
+drop policy if exists "Admins create shared plan" on public.admin_plan;
+create policy "Admins create shared plan" on public.admin_plan for insert to authenticated
+with check (auth.uid() is not null);
+drop policy if exists "Admins update shared plan" on public.admin_plan;
+create policy "Admins update shared plan" on public.admin_plan for update to authenticated
+using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- Change history stores actions and field names only, never student field values.
+create table if not exists public.admin_activity_log (
+  id bigint generated always as identity primary key,
+  record_type text not null check (record_type in ('student', 'post')),
+  record_id text not null,
+  action text not null check (action in ('created', 'updated', 'deleted')),
+  changed_fields text[] not null default '{}',
+  actor_user_id uuid references auth.users(id) on delete set null,
+  actor_email text,
+  logged_at timestamptz not null default now()
+);
+alter table public.admin_activity_log add column if not exists actor_email text;
+create index if not exists admin_activity_log_logged_at_idx on public.admin_activity_log (logged_at desc);
+alter table public.admin_activity_log enable row level security;
+revoke all on public.admin_activity_log from anon, authenticated;
+grant select on public.admin_activity_log to authenticated;
+drop policy if exists "ADM001 reads activity log" on public.admin_activity_log;
+create policy "ADM001 reads activity log" on public.admin_activity_log for select to authenticated
+using (public.is_committee_role_manager());
+
+create or replace function public.stamp_admin_plan()
+returns trigger
+language plpgsql
+set search_path = ''
+as $body$
+begin
+  new.updated_at = now();
+  new.updated_by = auth.uid();
+  return new;
+end;
+$body$;
+drop trigger if exists admin_plan_stamp on public.admin_plan;
+create trigger admin_plan_stamp before insert or update on public.admin_plan
+for each row execute function public.stamp_admin_plan();
+
+create or replace function public.capture_admin_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $body$
+declare
+  old_row jsonb;
+  new_row jsonb;
+  record_key text;
+  event_action text;
+  changed text[];
+begin
+  if tg_op = 'INSERT' then
+    new_row := to_jsonb(new);
+    record_key := new_row ->> tg_argv[0];
+    event_action := 'created';
+    select coalesce(array_agg(key order by key), '{}') into changed
+    from jsonb_object_keys(new_row) as fields(key)
+    where key not in ('created_at', 'updated_at');
+  elsif tg_op = 'UPDATE' then
+    old_row := to_jsonb(old);
+    new_row := to_jsonb(new);
+    record_key := new_row ->> tg_argv[0];
+    event_action := 'updated';
+    select coalesce(array_agg(coalesce(new_fields.key, old_fields.key) order by coalesce(new_fields.key, old_fields.key)), '{}') into changed
+    from jsonb_each(old_row) as old_fields(key, value)
+    full join jsonb_each(new_row) as new_fields(key, value) using (key)
+    where old_fields.value is distinct from new_fields.value
+      and coalesce(new_fields.key, old_fields.key) not in ('created_at', 'updated_at');
+    if cardinality(changed) = 0 then return new; end if;
+  else
+    old_row := to_jsonb(old);
+    record_key := old_row ->> tg_argv[0];
+    event_action := 'deleted';
+    select coalesce(array_agg(key order by key), '{}') into changed
+    from jsonb_object_keys(old_row) as fields(key)
+    where key not in ('created_at', 'updated_at');
+  end if;
+
+  insert into public.admin_activity_log (record_type, record_id, action, changed_fields, actor_user_id, actor_email)
+  values (case tg_table_name when 'students' then 'student' else 'post' end,
+          record_key, event_action, changed, auth.uid(), auth.jwt() ->> 'email');
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$body$;
+revoke all on function public.capture_admin_activity() from public, anon, authenticated;
+drop trigger if exists students_capture_activity on public.students;
+create trigger students_capture_activity after insert or update or delete on public.students
+for each row execute function public.capture_admin_activity('student_id');
+
 create table if not exists public.batch_resources (
   id uuid primary key default gen_random_uuid(),
   batch_id uuid not null references public.batches(id) on delete cascade,
   category text not null check (category in ('material', 'announcement')),
   title text not null check (length(trim(title)) between 1 and 160),
   body text not null default '',
+  is_published boolean not null default true,
   file_name text,
   object_path text unique,
   content_type text,
@@ -111,8 +220,33 @@ create table if not exists public.batch_resources (
     or (object_path is not null and file_name is not null and content_type is not null and file_size is not null)
   ),
   check (category <> 'announcement' or content_type is null or content_type = 'application/pdf'),
-  check (category <> 'announcement' or length(trim(body)) > 0 or object_path is not null)
+  constraint batch_resources_announcement_body_or_file_check
+    check (not is_published or category <> 'announcement' or length(trim(body)) > 0 or object_path is not null)
 );
+alter table public.batch_resources add column if not exists is_published boolean not null default true;
+do $announcement_migration$
+declare old_constraint record;
+begin
+  for old_constraint in
+    select conname from pg_constraint
+    where conrelid = 'public.batch_resources'::regclass
+      and contype = 'c'
+      and conname <> 'batch_resources_announcement_body_or_file_check'
+      and lower(pg_get_constraintdef(oid)) like '%category <> ''announcement''%'
+      and lower(pg_get_constraintdef(oid)) like '%body%'
+      and lower(pg_get_constraintdef(oid)) like '%object_path is not null%'
+  loop
+    execute format('alter table public.batch_resources drop constraint %I', old_constraint.conname);
+  end loop;
+end;
+$announcement_migration$;
+alter table public.batch_resources drop constraint if exists batch_resources_announcement_body_or_file_check;
+alter table public.batch_resources
+  add constraint batch_resources_announcement_body_or_file_check
+  check (not is_published or category <> 'announcement' or length(trim(body)) > 0 or object_path is not null);
+drop trigger if exists batch_resources_capture_activity on public.batch_resources;
+create trigger batch_resources_capture_activity after insert or update or delete on public.batch_resources
+for each row execute function public.capture_admin_activity('id');
 -- Materials can now be written as full text articles; attachments are optional.
 do $migration$
 declare old_constraint record;
@@ -134,10 +268,14 @@ begin
   ) then
     alter table public.batch_resources
       add constraint batch_resources_material_body_or_file_check
-      check (category <> 'material' or object_path is not null or length(trim(body)) > 0);
+      check (not is_published or category <> 'material' or object_path is not null or length(trim(body)) > 0);
   end if;
 end;
 $migration$;
+alter table public.batch_resources drop constraint if exists batch_resources_material_body_or_file_check;
+alter table public.batch_resources
+  add constraint batch_resources_material_body_or_file_check
+  check (not is_published or category <> 'material' or object_path is not null or length(trim(body)) > 0);
 create index if not exists batch_resources_batch_created_idx on public.batch_resources (batch_id, created_at desc);
 create index if not exists batch_resources_category_idx on public.batch_resources (category);
 create index if not exists batch_resources_public_feed_idx on public.batch_resources (batch_id, category, created_at desc, title);
@@ -307,6 +445,7 @@ as $body$
   join public.batches as b on b.id = r.batch_id
   where r.batch_id = p_batch_id
     and r.category = p_category
+    and r.is_published
   order by r.created_at desc, r.title
   limit least(greatest(coalesce(p_limit, 10), 1), 40)
   offset least(greatest(coalesce(p_offset, 0), 0), 100000);
