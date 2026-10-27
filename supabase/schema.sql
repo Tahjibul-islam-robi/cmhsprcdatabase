@@ -287,20 +287,41 @@ create index if not exists batch_resources_public_feed_idx on public.batch_resou
 
 -- Main public website content. Every signed-in administrator can manage it.
 create table if not exists public.site_pages (
-  slug text primary key check (slug in ('home', 'join')),
+  slug text primary key check (slug in ('home', 'about', 'join')),
   title text not null default '',
   subtitle text not null default '',
   hero_intro text not null default '',
   section_title text not null default '',
   body text not null default '',
+  highlight_one_title text not null default '',
+  highlight_one_body text not null default '',
+  highlight_two_title text not null default '',
+  highlight_two_body text not null default '',
+  highlight_three_title text not null default '',
+  highlight_three_body text not null default '',
   updated_at timestamptz not null default now(),
   updated_by uuid references auth.users(id)
 );
 alter table public.site_pages add column if not exists hero_intro text not null default '';
-insert into public.site_pages (slug, title, subtitle, hero_intro, section_title, body) values
-  ('home', 'Cumilla Modern High School', 'Programming And Robotics Club', 'A place to learn, build, and share ideas.', 'About our club', 'A student community for learning programming, exploring robotics, and sharing ideas.'),
-  ('join', 'Join the club', 'Membership is completed in person.', 'Collect the paper membership form in person; new members receive a club code after registration.', 'How to join', 'Collect and submit the membership form in person through an authorized club representative. After registration, you will be given a club code. Ask a club administrator for the current form pickup and submission details.')
+alter table public.site_pages add column if not exists highlight_one_title text not null default '';
+alter table public.site_pages add column if not exists highlight_one_body text not null default '';
+alter table public.site_pages add column if not exists highlight_two_title text not null default '';
+alter table public.site_pages add column if not exists highlight_two_body text not null default '';
+alter table public.site_pages add column if not exists highlight_three_title text not null default '';
+alter table public.site_pages add column if not exists highlight_three_body text not null default '';
+alter table public.site_pages drop constraint if exists site_pages_slug_check;
+alter table public.site_pages add constraint site_pages_slug_check check (slug in ('home', 'about', 'join'));
+insert into public.site_pages (
+  slug, title, subtitle, hero_intro, section_title, body,
+  highlight_one_title, highlight_one_body, highlight_two_title, highlight_two_body, highlight_three_title, highlight_three_body
+) values
+  ('home', 'Cumilla Modern High School', 'Programming And Robotics Club', 'A place to learn, build, and share ideas.', 'About our club', 'A student community for learning programming, exploring robotics, and sharing ideas.', '', '', '', '', '', ''),
+  ('about', 'About Us', 'A student club for programming, robotics, and learning together.', 'Founded in 2024 at Cumilla Modern High School, our club brings students together to explore technology and share what they learn.', 'Our story and activities', 'Cumilla Modern High School Programming and Robotics Club began in 2024 to give students a welcoming place to explore technology and learn together.\n\nOur focus is programming and robotics. Club sessions can include guided lessons, coding practice, creative problem-solving, and activities that connect software with real-world devices. Members learn together and help one another build confidence.\n\nIn 2025, the club organized an event, one of its milestones since starting.\n\nClub meetings are hosted by administrators (ADMs) and helping volunteers (EMs) in Room 312.\n\nMembership is open to CMHS students in Classes 6–10. Class 10 students cannot join after their pre-test exam.', 'Started', 'At Cumilla Modern High School in 2024.', 'Meetings', 'Hosted by club administrators (ADMs) and helping volunteers (EMs) in Room 312.', 'Who can join', 'CMHS students in Classes 6–10. Class 10 students cannot join after their pre-test exam.'),
+  ('join', 'Join the club', 'Membership is completed in person.', 'Collect the paper membership form in person; new members receive a club code after registration.', 'How to join', 'Collect and submit the membership form in person through an authorized club representative. After registration, you will be given a club code. Ask a club administrator for the current form pickup and submission details.', '', '', '', '', '', '')
 on conflict (slug) do nothing;
+update public.site_pages
+set body = replace(body, chr(92) || 'n', chr(10))
+where slug = 'about';
 alter table public.site_pages enable row level security;
 revoke all on public.site_pages from anon, authenticated;
 grant select, insert, update on public.site_pages to authenticated;
@@ -527,11 +548,18 @@ revoke all on function public.get_public_batch_resources_page(uuid, text, intege
 grant execute on function public.get_public_batch_resources_page(uuid, text, integer, integer)
   to anon, authenticated;
 
-create or replace function public.get_public_site_pages()
-returns table (slug text, title text, subtitle text, hero_intro text, section_title text, body text, updated_at timestamptz)
+drop function if exists public.get_public_site_pages();
+create function public.get_public_site_pages()
+returns table (
+  slug text, title text, subtitle text, hero_intro text, section_title text, body text,
+  highlight_one_title text, highlight_one_body text, highlight_two_title text, highlight_two_body text,
+  highlight_three_title text, highlight_three_body text, updated_at timestamptz
+)
 language sql stable security definer set search_path = ''
 as $body$
-  select page.slug, page.title, page.subtitle, page.hero_intro, page.section_title, page.body, page.updated_at
+  select page.slug, page.title, page.subtitle, page.hero_intro, page.section_title, page.body,
+         page.highlight_one_title, page.highlight_one_body, page.highlight_two_title, page.highlight_two_body,
+         page.highlight_three_title, page.highlight_three_body, page.updated_at
   from public.site_pages as page
   order by page.slug;
 $body$;

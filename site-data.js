@@ -42,7 +42,7 @@ export function richContent(markup) {
 }
 export function pageNav(active) {
   return '<header class="site-header"><a class="brand" href="./" aria-label="Club home"><img src="./logo.png" alt="Club logo"><span>Cumilla Modern High School<br><strong>Programming And Robotics Club</strong></span></a><nav>' +
-    [['home', './', 'Home'], ['events', './events.html', 'Events'], ['blog', './blog.html', 'Blog'], ['team', './team.html', 'Executives'], ['join', './join.html', 'Join Us']]
+    [['home', './', 'Home'], ['about', './about.html', 'About Us'], ['events', './events.html', 'Events'], ['blog', './blog.html', 'Blog'], ['team', './team.html', 'Executives'], ['join', './join.html', 'Join Us']]
       .map(([key, href, label]) => '<a href="' + href + '"' + (key === active ? ' aria-current="page"' : '') + '>' + label + '</a>').join("") +
     '</nav></header>';
 }

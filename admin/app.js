@@ -193,6 +193,12 @@ function fillWebsitePage(slug) {
   const heroIntro = $("#" + slug + "-page-hero-intro"); if (heroIntro) heroIntro.value = page.hero_intro || "";
   $("#" + slug + "-page-section-title").value = page.section_title || "";
   $("#" + slug + "-page-body").value = page.body || "";
+  for (let index = 1; index <= 3; index += 1) {
+    const title = $("#about-page-highlight-" + ["one", "two", "three"][index - 1] + "-title");
+    const body = $("#about-page-highlight-" + ["one", "two", "three"][index - 1] + "-body");
+    if (title) title.value = page["highlight_" + ["one", "two", "three"][index - 1] + "_title"] || "";
+    if (body) body.value = page["highlight_" + ["one", "two", "three"][index - 1] + "_body"] || "";
+  }
 }
 function renderWebsiteEvents() {
   const body = $("#site-event-table-body"); if (!body) return;
@@ -213,7 +219,7 @@ async function loadWebsiteData() {
     if (eventsResult.error) throw eventsResult.error;
     state.websitePages = pagesResult.data || [];
     state.websiteEvents = eventsResult.data || [];
-    fillWebsitePage("home"); fillWebsitePage("join"); renderWebsiteEvents();
+    fillWebsitePage("home"); fillWebsitePage("about"); fillWebsitePage("join"); renderWebsiteEvents();
   } catch (error) { errorEl.textContent = "Website editing is not ready. Run the updated supabase/schema.sql, then refresh this page. " + (error.message || ""); errorEl.hidden = false; }
 }
 function showApp(user) {
@@ -271,23 +277,30 @@ $("#save-admin-plan").addEventListener("click", async () => {
 });
 $("#refresh-activity").addEventListener("click", () => loadActivityLog());
 
-["home", "join"].forEach((slug) => {
+["home", "about", "join"].forEach((slug) => {
   $("#" + slug + "-page-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget, button = form.querySelector('button[type="submit"]'); button.disabled = true;
+    const existingPage = state.websitePages.find((item) => item.slug === slug) || {};
     const page = {
       slug,
       title: $("#" + slug + "-page-title").value.trim(),
       subtitle: $("#" + slug + "-page-subtitle").value.trim(),
-      hero_intro: slug === "home" ? $("#home-page-hero-intro").value.trim() : (state.websitePages.find((item) => item.slug === slug)?.hero_intro || ""),
+      hero_intro: ["home", "about"].includes(slug) ? $("#" + slug + "-page-hero-intro").value.trim() : (existingPage.hero_intro || ""),
       section_title: $("#" + slug + "-page-section-title").value.trim(),
-      body: $("#" + slug + "-page-body").value.trim()
+      body: $("#" + slug + "-page-body").value.trim(),
+      highlight_one_title: slug === "about" ? $("#about-page-highlight-one-title").value.trim() : (existingPage.highlight_one_title || ""),
+      highlight_one_body: slug === "about" ? $("#about-page-highlight-one-body").value.trim() : (existingPage.highlight_one_body || ""),
+      highlight_two_title: slug === "about" ? $("#about-page-highlight-two-title").value.trim() : (existingPage.highlight_two_title || ""),
+      highlight_two_body: slug === "about" ? $("#about-page-highlight-two-body").value.trim() : (existingPage.highlight_two_body || ""),
+      highlight_three_title: slug === "about" ? $("#about-page-highlight-three-title").value.trim() : (existingPage.highlight_three_title || ""),
+      highlight_three_body: slug === "about" ? $("#about-page-highlight-three-body").value.trim() : (existingPage.highlight_three_body || "")
     };
     try {
       const { error } = await state.client.from("site_pages").upsert(page, { onConflict: "slug" });
       if (error) throw error;
       state.websitePages = state.websitePages.filter((item) => item.slug !== slug).concat(page);
-      showToast((slug === "home" ? "Home" : "Join Us") + " page saved.", "success");
+      showToast((slug === "home" ? "Home" : slug === "about" ? "About Us" : "Join Us") + " page saved.", "success");
     } catch (error) { showToast("Could not save the page: " + (error.message || "Connection failed."), "error"); }
     finally { button.disabled = false; }
   });

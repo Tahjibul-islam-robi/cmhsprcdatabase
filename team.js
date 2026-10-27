@@ -2,11 +2,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const config = window.CLUB_SUPABASE_CONFIG || {};
 const categories = [
-  { role: "Delegate", list: "delegates-list", count: "delegates-count", empty: "No delegates have been listed yet." },
   { role: "Administrator (ADM)", list: "admins-list", count: "admins-count", empty: "No ADM administrators were found." },
+  { role: "Delegate", list: "delegates-list", count: "delegates-count", empty: "No delegates have been listed yet." },
   { role: "Trainer (EM)", list: "trainers-list", count: "trainers-count", empty: "No EM trainers have been assigned yet." },
   { role: "Assistant Trainer (EM)", list: "assistant-trainers-list", count: "assistant-trainers-count", empty: "No EM assistant trainers have been assigned yet." }
 ];
+const rolePriority = ["President", "Vice President", "General Secretary", "Joint Secretary", "Treasurer", "Organizing Secretary", "IT Secretary", "Publicity Secretary", "Volunteer Coordinator", "Event Volunteer", "Technical Volunteer", "Content Volunteer", "Executive Member", "Delegate", "Trainer", "Assistant Trainer"];
+const roleRank = (position) => { const rank = rolePriority.indexOf(String(position || "")); return rank < 0 ? rolePriority.length : rank; };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
 async function loadTeam() {
@@ -19,7 +21,7 @@ async function loadTeam() {
     if (membersByRole.has(member.team_role)) membersByRole.get(member.team_role).push({ name: member.full_name, position: member.position_title });
   });
   categories.forEach((category) => {
-    const people = membersByRole.get(category.role).filter((member) => member.name).sort((a, b) => a.name.localeCompare(b.name));
+    const people = membersByRole.get(category.role).filter((member) => member.name).sort((a, b) => roleRank(a.position) - roleRank(b.position) || a.name.localeCompare(b.name));
     document.querySelector("#" + category.count).textContent = String(people.length);
     document.querySelector("#" + category.list).innerHTML = people.length
       ? people.map((member) => '<li><span class="team-person-name">' + escapeHtml(member.name) + '</span><span class="team-position-label">' + escapeHtml(member.position || category.role) + "</span></li>").join("")
