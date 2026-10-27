@@ -190,7 +190,12 @@ begin
   end if;
 
   insert into public.admin_activity_log (record_type, record_id, action, changed_fields, actor_user_id, actor_email)
-  values (case tg_table_name when 'students' then 'student' else 'post' end,
+  values (case tg_table_name
+            when 'students' then 'student'
+            when 'batch_resources' then 'post'
+            when 'site_pages' then 'website page'
+            else 'event'
+          end,
           record_key, event_action, changed, auth.uid(), auth.jwt() ->> 'email');
   if tg_op = 'DELETE' then return old; end if;
   return new;
@@ -279,6 +284,73 @@ alter table public.batch_resources
 create index if not exists batch_resources_batch_created_idx on public.batch_resources (batch_id, created_at desc);
 create index if not exists batch_resources_category_idx on public.batch_resources (category);
 create index if not exists batch_resources_public_feed_idx on public.batch_resources (batch_id, category, created_at desc, title);
+
+-- Main public website content. Every signed-in administrator can manage it.
+create table if not exists public.site_pages (
+  slug text primary key check (slug in ('home', 'join')),
+  title text not null default '',
+  subtitle text not null default '',
+  hero_intro text not null default '',
+  section_title text not null default '',
+  body text not null default '',
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+alter table public.site_pages add column if not exists hero_intro text not null default '';
+insert into public.site_pages (slug, title, subtitle, hero_intro, section_title, body) values
+  ('home', 'Cumilla Modern High School', 'Programming And Robotics Club', 'A place to learn, build, and share ideas.', 'About our club', 'A student community for learning programming, exploring robotics, and sharing ideas.'),
+  ('join', 'Join the club', 'Membership is completed in person.', 'Collect the paper membership form in person; new members receive a club code after registration.', 'How to join', 'Collect and submit the membership form in person through an authorized club representative. After registration, you will be given a club code. Ask a club administrator for the current form pickup and submission details.')
+on conflict (slug) do nothing;
+alter table public.site_pages enable row level security;
+revoke all on public.site_pages from anon, authenticated;
+grant select, insert, update on public.site_pages to authenticated;
+drop policy if exists "Admins read website pages" on public.site_pages;
+create policy "Admins read website pages" on public.site_pages for select to authenticated
+using (auth.uid() is not null);
+drop policy if exists "Admins create website pages" on public.site_pages;
+create policy "Admins create website pages" on public.site_pages for insert to authenticated
+with check (auth.uid() is not null);
+drop policy if exists "Admins update website pages" on public.site_pages;
+create policy "Admins update website pages" on public.site_pages for update to authenticated
+using (auth.uid() is not null) with check (auth.uid() is not null);
+
+create table if not exists public.site_events (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (length(trim(title)) between 1 and 160),
+  event_type text not null default 'Workshop' check (event_type in ('Workshop', 'Class', 'Competition', 'Meeting', 'Other')),
+  event_date date not null,
+  event_time text,
+  location text not null default '',
+  summary text not null default '',
+  details text not null default '',
+  is_published boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+create index if not exists site_events_public_date_idx on public.site_events (is_published, event_date);
+alter table public.site_events enable row level security;
+revoke all on public.site_events from anon, authenticated;
+grant select, insert, update, delete on public.site_events to authenticated;
+drop policy if exists "Admins manage website events" on public.site_events;
+create policy "Admins manage website events" on public.site_events for all to authenticated
+using (auth.uid() is not null) with check (auth.uid() is not null);
+
+alter table public.admin_activity_log drop constraint if exists admin_activity_log_record_type_check;
+alter table public.admin_activity_log add constraint admin_activity_log_record_type_check
+  check (record_type in ('student', 'post', 'website page', 'event'));
+drop trigger if exists site_pages_capture_activity on public.site_pages;
+create trigger site_pages_capture_activity after insert or update or delete on public.site_pages
+for each row execute function public.capture_admin_activity('slug');
+drop trigger if exists site_events_capture_activity on public.site_events;
+create trigger site_events_capture_activity after insert or update or delete on public.site_events
+for each row execute function public.capture_admin_activity('id');
+drop trigger if exists site_pages_stamp on public.site_pages;
+create trigger site_pages_stamp before insert or update on public.site_pages
+for each row execute function public.stamp_admin_plan();
+drop trigger if exists site_events_stamp on public.site_events;
+create trigger site_events_stamp before insert or update on public.site_events
+for each row execute function public.stamp_admin_plan();
 
 create table if not exists public.attendance_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -454,6 +526,54 @@ revoke all on function public.get_public_batch_resources_page(uuid, text, intege
   from public, anon, authenticated;
 grant execute on function public.get_public_batch_resources_page(uuid, text, integer, integer)
   to anon, authenticated;
+
+create or replace function public.get_public_site_pages()
+returns table (slug text, title text, subtitle text, hero_intro text, section_title text, body text, updated_at timestamptz)
+language sql stable security definer set search_path = ''
+as $body$
+  select page.slug, page.title, page.subtitle, page.hero_intro, page.section_title, page.body, page.updated_at
+  from public.site_pages as page
+  order by page.slug;
+$body$;
+revoke all on function public.get_public_site_pages() from public, anon, authenticated;
+grant execute on function public.get_public_site_pages() to anon, authenticated;
+
+create or replace function public.get_public_site_events(p_limit integer default 100)
+returns table (id uuid, title text, event_type text, event_date date, event_time text, location text, summary text, details text)
+language sql stable security definer set search_path = ''
+as $body$
+  select event.id, event.title, event.event_type, event.event_date, event.event_time,
+         event.location, event.summary, event.details
+  from public.site_events as event
+  where event.is_published
+  order by case when event.event_date >= (now() at time zone 'Asia/Dhaka')::date then 0 else 1 end,
+           case when event.event_date >= (now() at time zone 'Asia/Dhaka')::date then event.event_date end asc,
+           case when event.event_date < (now() at time zone 'Asia/Dhaka')::date then event.event_date end desc,
+           event.created_at desc
+  limit least(greatest(coalesce(p_limit, 100), 1), 200);
+$body$;
+revoke all on function public.get_public_site_events(integer) from public, anon, authenticated;
+grant execute on function public.get_public_site_events(integer) to anon, authenticated;
+
+create or replace function public.get_public_site_blog(p_limit integer default 12, p_offset integer default 0)
+returns table (
+  id uuid, batch_id uuid, batch_number integer, batch_name text, category text,
+  title text, body text, file_name text, object_path text, created_at timestamptz, total_count bigint
+)
+language sql stable security definer set search_path = ''
+as $body$
+  select resource.id, resource.batch_id, batch.batch_number, batch.name, resource.category,
+         resource.title, resource.body, resource.file_name, resource.object_path,
+         resource.created_at, count(*) over ()
+  from public.batch_resources as resource
+  join public.batches as batch on batch.id = resource.batch_id
+  where resource.is_published
+  order by resource.created_at desc, resource.title
+  limit least(greatest(coalesce(p_limit, 12), 1), 40)
+  offset least(greatest(coalesce(p_offset, 0), 0), 100000);
+$body$;
+revoke all on function public.get_public_site_blog(integer, integer) from public, anon, authenticated;
+grant execute on function public.get_public_site_blog(integer, integer) to anon, authenticated;
 
 -- Public team page returns names and assigned public-facing role titles only.
 drop function if exists public.get_public_club_team();

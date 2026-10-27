@@ -22,7 +22,7 @@ const RESOURCE_MIME_TYPES = {
 };
 const RESOURCE_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp";
 const COMMITTEE_POSITIONS = ["President", "Vice President", "General Secretary", "Joint Secretary", "Treasurer", "Organizing Secretary", "IT Secretary", "Publicity Secretary", "Delegate", "Trainer", "Assistant Trainer", "Executive Member", "Volunteer Coordinator", "Event Volunteer", "Technical Volunteer", "Content Volunteer"];
-const state = { client: null, userId: "", isCommitteeManager: false, committeePositions: [], students: [], batches: [], memberships: [], sessions: [], attendance: [], resources: [], resourcesError: null, planUpdatedAt: null, page: "overview",
+const state = { client: null, userId: "", isCommitteeManager: false, committeePositions: [], students: [], batches: [], memberships: [], sessions: [], attendance: [], resources: [], resourcesError: null, websitePages: [], websiteEvents: [], planUpdatedAt: null, page: "overview",
   currentStudent: null, editingId: null, selectedSessionId: "", attendanceFilter: "All", selectedBatchId: "", pendingImport: [], pendingImportAttendance: [], filteredStudents: [] };
 const $ = (selector) => document.querySelector(selector);
 
@@ -103,12 +103,13 @@ function setPage(page) {
   state.page = page;
   document.querySelectorAll(".page-section").forEach((section) => { section.hidden = section.dataset.section !== page; });
   document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === page));
-  const titles = { overview: "Overview", students: "Students", committee: "Committee & volunteers", batches: "Batches", resources: "Blog & materials", attendance: "Attendance", reports: "Reports", data: "Data quality", plan: "Admin plan", activity: "Activity log", backup: "Import & backup" };
+  const titles = { overview: "Overview", students: "Students", committee: "Committee & volunteers", batches: "Batches", resources: "Blog & materials", website: "Main website", attendance: "Attendance", reports: "Reports", data: "Data quality", plan: "Admin plan", activity: "Activity log", backup: "Import & backup" };
   $("#page-title").textContent = titles[page] || "Overview";
   if (page === "students") renderStudents();
   if (page === "committee") renderCommittee();
   if (page === "batches") renderBatches();
   if (page === "resources") renderResources();
+  if (page === "website") loadWebsiteData();
   if (page === "attendance") renderAttendance();
   if (page === "reports") renderReports();
   if (page === "data") renderQuality();
@@ -179,9 +180,41 @@ async function loadActivityLog() {
     body.innerHTML = rows.map((item) => {
       const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.logged_at));
       const fields = (item.changed_fields || []).map((field) => field.replaceAll("_", " ")).join(", ") || "—";
-      return "<tr><td>" + escapeHtml(when) + "</td><td>" + escapeHtml(item.actor_email || "Admin") + "</td><td>" + (item.record_type === "student" ? "Student" : "Post / material") + "</td><td>" + escapeHtml(item.record_id) + "</td><td>" + escapeHtml(item.action) + "</td><td>" + escapeHtml(fields) + "</td></tr>";
+      const recordLabel = { student: "Student", post: "Post / material", "website page": "Website page", event: "Event" }[item.record_type] || "Record";
+      return "<tr><td>" + escapeHtml(when) + "</td><td>" + escapeHtml(item.actor_email || "Admin") + "</td><td>" + recordLabel + "</td><td>" + escapeHtml(item.record_id) + "</td><td>" + escapeHtml(item.action) + "</td><td>" + escapeHtml(fields) + "</td></tr>";
     }).join("");
   } catch (error) { errorEl.textContent = "Could not load activity. Run the updated supabase/schema.sql. " + (error.message || "Connection failed."); errorEl.hidden = false; body.innerHTML = ""; $("#activity-count").textContent = "Unavailable"; $("#activity-empty").hidden = true; }
+}
+function fillWebsitePage(slug) {
+  const page = state.websitePages.find((item) => item.slug === slug);
+  if (!page) return;
+  $("#" + slug + "-page-title").value = page.title || "";
+  $("#" + slug + "-page-subtitle").value = page.subtitle || "";
+  const heroIntro = $("#" + slug + "-page-hero-intro"); if (heroIntro) heroIntro.value = page.hero_intro || "";
+  $("#" + slug + "-page-section-title").value = page.section_title || "";
+  $("#" + slug + "-page-body").value = page.body || "";
+}
+function renderWebsiteEvents() {
+  const body = $("#site-event-table-body"); if (!body) return;
+  const events = state.websiteEvents.slice().sort((a, b) => String(a.event_date).localeCompare(String(b.event_date)) || String(a.title).localeCompare(String(b.title)));
+  $("#site-event-count").textContent = events.length + (events.length === 1 ? " event" : " events");
+  $("#site-event-empty").hidden = events.length > 0;
+  body.innerHTML = events.map((item) => '<tr><td>' + escapeHtml(dateLabel(item.event_date)) + '</td><td><strong>' + escapeHtml(item.title) + '</strong></td><td>' + escapeHtml(item.event_type) + '</td><td><span class="resource-status ' + (item.is_published ? "published" : "draft") + '">' + (item.is_published ? "Published" : "Draft") + '</span></td><td><div class="resource-row-actions"><button class="table-action" type="button" data-edit-site-event="' + escapeHtml(item.id) + '">Edit</button><button class="table-action delete-resource" type="button" data-delete-site-event="' + escapeHtml(item.id) + '">Delete</button></div></td></tr>').join("");
+}
+async function loadWebsiteData() {
+  const errorEl = $("#website-schema-error"); if (!errorEl) return;
+  errorEl.hidden = true;
+  try {
+    const [pagesResult, eventsResult] = await Promise.all([
+      state.client.from("site_pages").select("*").order("slug"),
+      state.client.from("site_events").select("*").order("event_date")
+    ]);
+    if (pagesResult.error) throw pagesResult.error;
+    if (eventsResult.error) throw eventsResult.error;
+    state.websitePages = pagesResult.data || [];
+    state.websiteEvents = eventsResult.data || [];
+    fillWebsitePage("home"); fillWebsitePage("join"); renderWebsiteEvents();
+  } catch (error) { errorEl.textContent = "Website editing is not ready. Run the updated supabase/schema.sql, then refresh this page. " + (error.message || ""); errorEl.hidden = false; }
 }
 function showApp(user) {
   $("#login-view").hidden = true; $("#admin-app").hidden = false; $("#user-email").textContent = user.email || "Administrator";
@@ -191,7 +224,7 @@ function showApp(user) {
 }
 function showLogin() {
   state.userId = ""; state.isCommitteeManager = false; state.committeePositions = []; $("#committee-nav-item").hidden = true; $("#activity-nav-item").hidden = true; state.planUpdatedAt = null;
-  state.students = []; state.batches = []; state.memberships = []; state.sessions = []; state.attendance = []; state.resources = []; state.resourcesError = null; state.filteredStudents = []; state.selectedBatchId = "";
+  state.students = []; state.batches = []; state.memberships = []; state.sessions = []; state.attendance = []; state.resources = []; state.resourcesError = null; state.websitePages = []; state.websiteEvents = []; state.filteredStudents = []; state.selectedBatchId = "";
   $("#committee-table-body").innerHTML = ""; $("#activity-table-body").innerHTML = ""; $("#admin-plan-content").value = ""; state.page = "overview";
   document.querySelectorAll(".page-section").forEach((section) => { section.hidden = section.dataset.section !== "overview"; });
   document.querySelectorAll(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === "overview"));
@@ -237,6 +270,74 @@ $("#save-admin-plan").addEventListener("click", async () => {
   finally { button.disabled = false; }
 });
 $("#refresh-activity").addEventListener("click", () => loadActivityLog());
+
+["home", "join"].forEach((slug) => {
+  $("#" + slug + "-page-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget, button = form.querySelector('button[type="submit"]'); button.disabled = true;
+    const page = {
+      slug,
+      title: $("#" + slug + "-page-title").value.trim(),
+      subtitle: $("#" + slug + "-page-subtitle").value.trim(),
+      hero_intro: slug === "home" ? $("#home-page-hero-intro").value.trim() : (state.websitePages.find((item) => item.slug === slug)?.hero_intro || ""),
+      section_title: $("#" + slug + "-page-section-title").value.trim(),
+      body: $("#" + slug + "-page-body").value.trim()
+    };
+    try {
+      const { error } = await state.client.from("site_pages").upsert(page, { onConflict: "slug" });
+      if (error) throw error;
+      state.websitePages = state.websitePages.filter((item) => item.slug !== slug).concat(page);
+      showToast((slug === "home" ? "Home" : "Join Us") + " page saved.", "success");
+    } catch (error) { showToast("Could not save the page: " + (error.message || "Connection failed."), "error"); }
+    finally { button.disabled = false; }
+  });
+});
+function resetSiteEventForm() {
+  $("#site-event-form").reset(); $("#site-event-id").value = ""; $("#site-event-published").checked = false;
+  $("#save-site-event").textContent = "Save event"; $("#cancel-site-event").hidden = true; $("#site-event-error").hidden = true;
+}
+function editSiteEvent(id) {
+  const item = state.websiteEvents.find((event) => event.id === id); if (!item) return;
+  $("#site-event-id").value = item.id; $("#site-event-title").value = item.title;
+  $("#site-event-type").value = item.event_type; $("#site-event-date").value = item.event_date;
+  $("#site-event-time").value = item.event_time || ""; $("#site-event-location").value = item.location || "";
+  $("#site-event-summary").value = item.summary || ""; $("#site-event-details").value = item.details || "";
+  $("#site-event-published").checked = Boolean(item.is_published); $("#save-site-event").textContent = "Save changes";
+  $("#cancel-site-event").hidden = false; window.scrollTo({ top: 0, behavior: "smooth" });
+}
+$("#site-event-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const errorEl = $("#site-event-error"), button = $("#save-site-event"); errorEl.hidden = true; button.disabled = true;
+  const id = $("#site-event-id").value;
+  const payload = {
+    title: $("#site-event-title").value.trim(), event_type: $("#site-event-type").value,
+    event_date: $("#site-event-date").value, event_time: $("#site-event-time").value.trim() || null,
+    location: $("#site-event-location").value.trim(), summary: $("#site-event-summary").value.trim(),
+    details: $("#site-event-details").value.trim(), is_published: $("#site-event-published").checked
+  };
+  try {
+    const result = id
+      ? await state.client.from("site_events").update(payload).eq("id", id)
+      : await state.client.from("site_events").insert(payload);
+    if (result.error) throw result.error;
+    resetSiteEventForm(); await loadWebsiteData();
+    showToast(payload.is_published ? "Event saved and published." : "Event saved as a draft.", "success");
+  } catch (error) { errorEl.textContent = "Could not save event: " + (error.message || "Connection failed."); errorEl.hidden = false; }
+  finally { button.disabled = false; }
+});
+$("#cancel-site-event").addEventListener("click", resetSiteEventForm);
+$("#site-event-table-body").addEventListener("click", async (event) => {
+  const edit = event.target.closest("[data-edit-site-event]");
+  if (edit) { editSiteEvent(edit.dataset.editSiteEvent); return; }
+  const remove = event.target.closest("[data-delete-site-event]"); if (!remove) return;
+  const item = state.websiteEvents.find((entry) => entry.id === remove.dataset.deleteSiteEvent); if (!item) return;
+  if (!window.confirm("Delete the event “" + item.title + "”?")) return;
+  remove.disabled = true;
+  const { error } = await state.client.from("site_events").delete().eq("id", item.id);
+  if (error) { showToast("Could not delete event: " + error.message, "error"); remove.disabled = false; return; }
+  if (item.id === $("#site-event-id").value) resetSiteEventForm();
+  await loadWebsiteData(); showToast("Event deleted.", "success");
+});
 
 function distinctSorted(values) {
   return Array.from(new Set(values.filter((value) => !emptyPlaceholder(value)).map((value) => String(value).trim())))

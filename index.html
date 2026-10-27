@@ -1,52 +1,23 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#07111f">
-  <meta name="description" content="Public batch blog, student rosters, announcements, and learning materials from the Cumilla Modern High School Programming And Robotics Club.">
-  <title>CMHS Programming & Robotics Club</title>
-  <link rel="icon" href="./logo.png">
-  <link rel="stylesheet" href="./portal.css">
-  <link rel="stylesheet" href="./portal-rich.css">
-  <script src="./admin/config.js"></script>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#07111f">
+  <meta name="description" content="The official website of Cumilla Modern High School Programming And Robotics Club.">
+  <title>Cumilla Modern High School Programming And Robotics Club</title>
+  <link rel="icon" href="./logo.png"><link rel="stylesheet" href="./portal.css"><link rel="stylesheet" href="./club-site.css"><script src="./admin/config.js"></script>
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="./" aria-label="Club home"><img src="./logo.png" alt="Club logo"><span>Cumilla Modern High School<br><strong>Programming And Robotics Club</strong></span></a>
-    <nav><a href="./team.html">Club team</a><a href="./archive.html">Older posts</a><a href="./cmhsprc/">Club rules</a><a href="./admin/">Admin</a></nav>
-  </header>
-  <main class="page-wrap">
-    <section class="hero">
-      <p class="eyebrow">PUBLIC CLUB BLOG</p>
-      <h1>Learn, build, and<br><span>keep up with your batch.</span></h1>
-      <p>Batch announcements, learning resources, and member rosters in one place.</p>
-    </section>
-    <section class="batch-layout" aria-label="Batch blog">
-      <aside class="batch-panel">
-        <div class="section-heading"><div><p class="eyebrow">EXPLORE</p><h2>Choose a batch</h2></div><span id="batch-count" class="count">—</span></div>
-        <div id="batch-list" class="batch-list" aria-live="polite"><p class="loading">Loading batches…</p></div>
-        <a class="rules-link" href="./cmhsprc/">Read club rules <span>↗</span></a>
-      </aside>
-      <div class="batch-content">
-        <div id="portal-status" class="status" role="status" aria-live="polite"></div>
-        <section class="content-section" aria-labelledby="updates-title">
-          <div class="section-heading"><div><p class="eyebrow">LATEST FROM THE CLUB</p><h2 id="updates-title">Blog & announcements</h2></div><a class="archive-link" id="announcement-archive-link" hidden>Older announcements →</a></div>
-          <div id="announcement-list" class="post-list"><p class="empty">Choose a batch to see its updates.</p></div>
-        </section>
-        <section class="content-section" aria-labelledby="materials-title">
-          <div class="section-heading"><div><p class="eyebrow">KEEP LEARNING</p><h2 id="materials-title">Batch materials</h2></div><a class="archive-link" id="material-archive-link" hidden>Older materials →</a></div>
-          <div id="material-list" class="material-list"><p class="empty">Materials shared by the club will appear here.</p></div>
-        </section>
-        <section class="content-section" aria-labelledby="roster-title">
-          <div class="section-heading"><div><p class="eyebrow">BATCH MEMBERS</p><h2 id="roster-title">Student roster</h2></div><span id="roster-count" class="count"></span></div>
-          <div class="roster-scroll"><table><thead><tr><th>Student ID</th><th>Full name</th></tr></thead><tbody id="roster-body"><tr><td colspan="2" class="empty">Choose a batch to view its roster.</td></tr></tbody></table></div>
-          <p class="privacy-note">This public roster shows student IDs and names only.</p>
-        </section>
-      </div>
-    </section>
+  <div id="site-nav"></div>
+  <main class="site-wrap">
+    <section class="site-hero"><div class="site-hero-inner"><p class="eyebrow">CUMILLA MODERN HIGH SCHOOL</p><h1 id="home-title">Programming And<br><span>Robotics Club.</span></h1><p id="home-subtitle">A place to learn, build, and share ideas.</p><div class="site-actions"><a class="site-button" href="./join.html">How to join <span aria-hidden="true">↗</span></a><a class="site-button secondary" href="./events.html">Explore events</a></div></div></section>
+    <p id="home-status" class="site-status" role="status" aria-live="polite"></p>
+    <section class="site-section" aria-labelledby="about-title"><div class="site-section-heading"><div><p class="eyebrow">ABOUT THE CLUB</p><h2 id="about-title">A club for curious minds</h2></div></div><div id="about-body" class="site-prose">We learn programming, explore robotics, and share what we discover with one another.</div></section>
+    <section class="site-section" aria-labelledby="events-title"><div class="site-section-heading"><div><p class="eyebrow">WHAT’S HAPPENING</p><h2 id="events-title">Club events</h2></div><a href="./events.html">All events →</a></div><div id="home-events" class="site-grid"><p class="site-empty">Loading events…</p></div></section>
+    <section class="site-section" aria-labelledby="blog-title"><div class="site-section-heading"><div><p class="eyebrow">FROM THE CLUB</p><h2 id="blog-title">Latest posts</h2></div><a href="./blog.html">Read the blog →</a></div><div id="home-blog" class="site-grid"><p class="site-empty">Loading posts…</p></div></section>
+    <section class="site-section" aria-labelledby="executives-title"><div class="site-section-heading"><div><p class="eyebrow">PEOPLE BEHIND THE CLUB</p><h2 id="executives-title">Club executives</h2></div><a href="./team.html">Meet the team →</a></div><div id="home-team" class="site-people"><p class="site-empty">Loading the team…</p></div></section>
+    <section class="site-section site-callout"><div><p class="eyebrow">BECOME A MEMBER</p><h2 id="home-join-title">Join the club.</h2><p id="home-join-intro">Membership forms are collected manually. New members receive a club code after registration.</p></div><a class="site-button" href="./join.html">Join Us</a></section>
   </main>
-  <footer><span>Cumilla Modern High School Programming And Robotics Club</span><span>Public batch blog</span></footer>
-  <script type="module" src="./portal.js"></script>
+  <div id="site-footer"></div>
+  <script type="module" src="./home.js"></script>
 </body>
 </html>

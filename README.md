@@ -1,6 +1,6 @@
 # Club records admin website
 
-This folder is the website package to upload to GitHub Pages. It contains the public club blog/student portal, the existing club rules page, and the administrator app. Do not upload the parent project folder: it may contain student JSON files and registration PDFs that must stay private.
+This folder is the website package to upload to GitHub Pages. It contains the public club website, the batch portal, the club rules page, and the administrator app. Do not upload the parent project folder: it may contain student JSON files and registration PDFs that must stay private.
 
 ## Included features
 
@@ -10,9 +10,10 @@ This folder is the website package to upload to GitHub Pages. It contains the pu
 - Add, edit, delete, and CSV export with confirmation for contact data.
 - Numbered batches with student membership managed by exact student IDs.
 - Public batch blog with announcements/notices and full class-material articles written and edited directly in Admin. Rich formatting supports headings, lists, links, quotes, and code blocks; file attachments are optional for article posts.
+- Main club website with Home, Events, Blog, Executives, and Join Us pages. Any signed-in administrator can edit Home and Join Us text and create, edit, publish, or delete events from the Website section in Admin. Blog posts are managed in Blog & batch materials. The public blog gathers published posts across batches; the separate batch portal retains batch rosters and materials.
 - Text-only notice maker with a live school-branded preview and browser Print / Save as PDF; the PDF can then be attached to an announcement in Admin.
 - Save announcement and class-material drafts privately in Admin, then publish them when ready. Drafts are text-only because uploaded attachments use public storage.
-- Shared Admin Plan note editable by all signed-in admins, plus an ADM001-only activity log for student and post changes. The log records action, time, admin email, record ID, and changed field names, but does not store private field values.
+- Shared Admin Plan note editable by all signed-in admins, plus an ADM001-only activity log for student, post, website page, and event changes. The log records action, time, admin email, record ID, and changed field names, but does not store private field values.
 - The public batch blog loads only the two newest announcements and two newest materials for the selected batch. Older posts are available in a separate archive page with batch/category filters and pagination.
 - Public batch rosters show only full names and student IDs. Student contact details, addresses, and guardian information remain in protected tables and are not returned by the public portal.
 - Public Club Team page lists delegate names, ADM administrators, and EM trainers/assistant trainers; the public RPC returns names and role labels only.
@@ -29,18 +30,18 @@ Students can belong to one or more batches. Batch attendance meetings include on
 ## Supabase setup and updates (Free plan)
 
 1. Create a Supabase account and a new Free project.
-2. In the Supabase SQL Editor, run the contents of supabase/schema.sql. When updating an existing project, rerun the complete updated file; it adds draft publishing, the shared admin plan, the ADM001-only audit log, and creates the narrow public read functions and public file bucket while preserving existing student and attendance records.
+2. In the Supabase SQL Editor, run the contents of supabase/schema.sql. When updating an existing project, rerun the complete updated file; it adds the editable main website pages and events, draft publishing, the shared admin plan, the ADM001-only audit log, and the narrow public read functions while preserving existing student and attendance records.
 3. In Supabase Auth settings, turn off public user sign-ups. Create your administrator login from the Supabase dashboard.
 4. Open admin/config.js and set the project URL and publishable key. The publishable key is intended for browser apps. Never put a service-role or secret key in this file.
 5. Keep the database tables protected by the row-level security policies in the schema.
-6. Open the site root over HTTPS for the public blog. Open admin/ and sign in to publish or edit posts, upload PDF notices, and add batch materials. Use the Notice Maker link in Blog & batch materials to write a text-only notice and save it as a PDF, then attach that PDF to an announcement. Visitors can open Older posts to browse archived posts by batch and category.
+6. Open the site root over HTTPS for the main club website. Open admin/ and sign in: use Website to edit Home and Join Us and manage Events; use Blog & batch materials to write, edit, and publish blog posts. Every signed-in administrator can use these website editing features. Committee and volunteer role management and the activity log remain restricted to ADM001. Use the Notice Maker link to create a text-only notice PDF and attach it to an announcement. The Batch Portal keeps batch-specific rosters and materials.
 7. In Import & backup, select your existing students.json file and review the preview before importing.
 
 The app imports student ID, name, class, section, roll, date of birth, gender, student phone, email, home address, guardian name, relationship, and guardian phone. It deliberately leaves out club status and area of interest. Historical attendance imports only recognized Present, Absent, or Late marks with valid dates; unsupported marks are counted in the preview. The original local JSON file is not modified or included in this upload package.
 
 ## GitHub Pages upload
 
-Upload the contents of this github-upload folder to the root of a GitHub repository, then enable GitHub Pages for the repository. The root URL is the public batch blog; the public team page is /team.html, the admin app URL ends in /admin/, and the existing rules page is at /cmhsprc/. Apply the updated Supabase schema before using the blog editor, team page, or portal.
+Upload the contents of this github-upload folder to the root of a GitHub repository, then enable GitHub Pages for the repository. The root URL is the public club home page; Events, Blog, Executives, and Join Us are separate pages. The batch portal is /batch-portal.html, the Admin app URL ends in /admin/, and the rules page is at /cmhsprc/. Apply the updated Supabase schema before using the website editor, blog, events, or team page.
 
 The code is public website code. Student records remain in Supabase and are never included in this folder. Because this portal is open to anyone, names and student IDs assigned to batches, published posts, and uploaded files are public. Never publish phone numbers, addresses, guardian details, or files containing private student information. If you add a custom domain or change hosting later, keep the admin login and database access policies enabled.
 
