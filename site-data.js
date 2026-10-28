@@ -41,10 +41,10 @@ export function richContent(markup) {
   return container.innerHTML;
 }
 export function pageNav(active) {
-  return '<header class="site-header"><a class="brand" href="./" aria-label="Club home"><img src="./assets/brand/cmhs-prc-profile.svg" alt="Club logo"><span>Cumilla Modern High School<br><strong>Programming And Robotics Club</strong></span></a><nav>' +
+  return '<header class="site-header"><a class="brand" href="./" aria-label="Club home"><img src="./assets/brand/cmhs-prc-profile.svg" alt="Club logo"><span>Cumilla Modern High School<br><strong>Programming And Robotics Club</strong></span></a><nav aria-label="Main navigation">' +
     [['home', './', 'Home'], ['about', './about.html', 'About Us'], ['events', './events.html', 'Events'], ['blog', './blog.html', 'Blog'], ['team', './team.html', 'Executives'], ['join', './join.html', 'Join Us']]
       .map(([key, href, label]) => '<a href="' + href + '"' + (key === active ? ' aria-current="page"' : '') + '>' + label + '</a>').join("") +
-    '</nav></header>';
+    '<a class="site-admin-link" href="./admin/">Admin</a></nav></header>';
 }
 export function pageFooter() {
   return '<footer><span>Cumilla Modern High School Programming And Robotics Club</span><span><a href="./cmhsprc/">Club rules</a> · <a href="./batch-portal.html">Batch resources</a> · <a href="./admin/">Admin</a></span></footer>';
