@@ -648,6 +648,11 @@ function renderBatches() {
   $("#batch-detail-description").textContent = batch.description || "";
   $("#batch-name").value = batch.name; $("#batch-description").value = batch.description || "";
   $("#batch-member-count").textContent = students.length + (students.length === 1 ? " student" : " students");
+  const emailCount = students.filter((student) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(student.email_address || "").trim())).length;
+  const emailButton = $("#email-batch-button");
+  emailButton.disabled = emailCount === 0;
+  emailButton.textContent = emailCount ? "Email batch (" + emailCount + ")" : "No member emails";
+  emailButton.title = emailCount ? "Open Gmail with member addresses in BCC" : "No valid student email addresses are saved for this batch";
   $("#batch-members-empty").hidden = students.length > 0;
   $("#batch-members-list").innerHTML = students.map((student) => '<div class="batch-member-row"><div><strong>' + escapeHtml(student.full_name) + '</strong><small>ID ' + escapeHtml(student.student_id) +
     " · Class " + escapeHtml(displayValue(student.class)) + " · Section " + escapeHtml(displayValue(student.section)) + '</small></div><button class="table-action remove-member" type="button" data-remove-member-id="' +
@@ -885,6 +890,26 @@ $("#batch-member-form").addEventListener("submit", async (event) => {
   $("#batch-member-ids").value = ""; await loadData(); state.selectedBatchId = batch.id; renderBatches();
   const missing = ids.length - found.length; showToast(additions.length + " student(s) added to the batch" + (missing ? "; " + missing + " ID(s) not found." : "."), missing ? "error" : "success");
 });
+$("#email-batch-button").addEventListener("click", () => {
+  const batch = state.batches.find((item) => item.id === state.selectedBatchId);
+  if (!batch) return;
+  const members = state.memberships
+    .filter((membership) => membership.batch_id === batch.id)
+    .map((membership) => state.students.find((student) => student.student_id === membership.student_id))
+    .filter((student) => student && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(student.email_address || "").trim()));
+  const recipients = [...new Set(members.map((student) => String(student.email_address).trim()))];
+  if (!recipients.length) {
+    showToast("No valid student email addresses are saved for this batch.", "error");
+    return;
+  }
+  const gmail = new URL("https://mail.google.com/mail/");
+  gmail.searchParams.set("view", "cm");
+  gmail.searchParams.set("fs", "1");
+  gmail.searchParams.set("bcc", recipients.join(","));
+  gmail.searchParams.set("su", batch.name + " · Club update");
+  window.open(gmail.href, "_blank", "noopener,noreferrer");
+});
+
 $("#batch-members-list").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-remove-member-id]"); if (!button) return;
   const batchId = state.selectedBatchId, studentId = decodeURIComponent(button.dataset.removeMemberId);
