@@ -30,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistMono.variable} dark antialiased`}>
-      <body className="min-h-screen flex flex-col bg-[#04080D] text-[#F5E8C7] selection:bg-[#E62229] selection:text-white font-mono overflow-x-hidden">
+      <body className="min-h-screen flex flex-col bg-[#04080D] text-[#F5E8C7] selection:bg-[#E62229] selection:text-white font-mono overflow-x-clip">
         <SmoothScroll>
           <VenomProvider>
             {/* Top Cyberpunk Progress Bar */}

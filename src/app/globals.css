@@ -1,3 +1,4 @@
+/* Hallmark · v2.0.0 · theme: mech-cyber (bespoke) · genre: atmospheric · depth: polish */
 @import "tailwindcss";
 
 :root {
@@ -11,6 +12,11 @@
   --cyber-cyan: #00F0FF;
   --cyber-green: #00FF66;
   --cyber-black: #04080D;
+  --cyber-pure-black: #000000;
+  --cyber-white: #FFFFFF;
+  --cyber-gray-light: #E5E7EB;
+  --cyber-gray-mid: #A3A3A3;
+  --cyber-gray-dark: #333333;
 }
 
 * {
@@ -21,17 +27,34 @@ html {
   color-scheme: dark;
   background-color: var(--cyber-black);
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 body {
   background-color: var(--cyber-black);
   color: var(--cyber-cream);
   font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  overflow-x: hidden;
+  overflow-x: clip;
   min-height: 100vh;
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Accessible focus ring */
+:focus-visible {
+  outline: 2px solid var(--cyber-red);
+  outline-offset: 2px;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Hazard diagonal stripes */
@@ -58,27 +81,25 @@ body {
 /* Cyberpunk Ultra-Wide Typography */
 .font-mech-wide {
   font-family: var(--font-geist-mono), "Arial Black", Impact, sans-serif;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  transform: scaleY(0.9);
+  letter-spacing: -0.02em;
 }
 
-/* Barcode visual pattern generator */
+/* Barcode Graphic Pattern */
 .barcode-pattern {
   background: repeating-linear-gradient(
     90deg,
     var(--cyber-cream) 0px,
-    var(--cyber-cream) 3px,
-    transparent 3px,
-    transparent 6px,
-    var(--cyber-cream) 6px,
-    var(--cyber-cream) 10px,
+    var(--cyber-cream) 2px,
+    transparent 2px,
+    transparent 5px,
+    var(--cyber-cream) 5px,
+    var(--cyber-cream) 8px,
+    transparent 8px,
     transparent 10px,
-    transparent 12px,
-    var(--cyber-cream) 12px,
-    var(--cyber-cream) 18px,
-    transparent 18px,
-    transparent 22px
+    var(--cyber-cream) 10px,
+    var(--cyber-cream) 14px,
+    transparent 14px,
+    transparent 18px
   );
 }
 
@@ -88,48 +109,58 @@ body {
     var(--cyber-red) 0px,
     var(--cyber-red) 2px,
     transparent 2px,
-    transparent 5px,
-    var(--cyber-red) 5px,
-    var(--cyber-red) 9px,
+    transparent 4px,
+    var(--cyber-red) 4px,
+    var(--cyber-red) 7px,
+    transparent 7px,
     transparent 9px,
-    transparent 11px,
-    var(--cyber-red) 11px,
-    var(--cyber-red) 16px,
-    transparent 16px,
-    transparent 20px
+    var(--cyber-red) 9px,
+    var(--cyber-red) 13px,
+    transparent 13px,
+    transparent 16px
   );
 }
 
-/* Cyberpunk Frame Cards */
-.cyber-panel {
-  background-color: var(--cyber-navy);
-  border: 2px solid var(--cyber-red);
+/* Dot Grid Background Pattern */
+.cyber-grid {
+  background-image: 
+    radial-gradient(circle at 1px 1px, rgba(245, 232, 199, 0.15) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+.cyber-grid-dense {
+  background-image: 
+    linear-gradient(to right, rgba(245, 232, 199, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(245, 232, 199, 0.05) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Mechanical Panel Frame */
+.mech-panel {
   position: relative;
-}
-
-.cyber-panel-red {
-  background-color: var(--cyber-red);
   border: 2px solid var(--cyber-red);
-  color: var(--cyber-black);
+  background: var(--cyber-navy);
 }
 
-/* Stencil Corner Cutouts */
-.cyber-cut-tl {
-  clip-path: polygon(16px 0, 100% 0, 100% 100%, 0 100%, 0 16px);
+.mech-panel::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  background: var(--cyber-red);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 
-.cyber-cut-br {
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
-}
-
-/* True Cyberpunk Principle Button with Chamfered Corners & Light Sweep */
+/* Cyberpunk Principle Buttons */
 .btn-cyber-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   background-color: var(--cyber-red);
-  color: #04080D;
+  color: var(--cyber-black);
   font-weight: 900;
   font-size: 13px;
   letter-spacing: 0.1em;
@@ -138,8 +169,11 @@ body {
   border: none;
   position: relative;
   overflow: hidden;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 4px 4px 0px #000000;
+  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              color 0.2s ease,
+              transform 0.2s ease,
+              box-shadow 0.2s ease;
+  box-shadow: 4px 4px 0px var(--cyber-pure-black);
   cursor: pointer;
   text-transform: uppercase;
 }
@@ -148,20 +182,21 @@ body {
   content: "";
   position: absolute;
   top: 0;
-  left: -100%;
+  left: 0;
   width: 100%;
   height: 100%;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  transition: left 0.4s ease;
+  transform: translateX(-100%);
+  transition: transform 0.4s ease;
 }
 
 .btn-cyber-primary:hover::before {
-  left: 100%;
+  transform: translateX(100%);
 }
 
 .btn-cyber-primary:hover {
   background-color: var(--cyber-cream);
-  color: #04080D;
+  color: var(--cyber-black);
   box-shadow: 6px 6px 0px var(--cyber-red);
   transform: translate(-2px, -2px);
 }
@@ -181,7 +216,11 @@ body {
   border: 1px solid var(--cyber-red);
   position: relative;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease,
+              color 0.2s ease,
+              border-color 0.2s ease,
+              transform 0.2s ease,
+              box-shadow 0.2s ease;
   box-shadow: 4px 4px 0px var(--cyber-red);
   text-transform: uppercase;
   cursor: pointer;
@@ -189,15 +228,15 @@ body {
 
 .btn-cyber-navy:hover {
   background-color: var(--cyber-cream);
-  color: #04080D;
-  box-shadow: 6px 6px 0px #000000;
+  color: var(--cyber-black);
+  box-shadow: 6px 6px 0px var(--cyber-pure-black);
   transform: translate(-2px, -2px);
 }
 
-/* Custom Cyberpunk Scrollbar */
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -216,36 +255,36 @@ body {
    VENOM SYMBIOTE MODE: MARVEL AUTHENTIC PITCH BLACK & STARK BONE WHITE
    ========================================================================= */
 .venom-mode {
-  --cyber-red: #FFFFFF; /* Marvel Venom Stark White */
-  --cyber-red-hover: #E5E7EB;
-  --cyber-navy: #000000; /* Pure Marvel Symbiote Jet Black */
+  --cyber-red: var(--cyber-white);
+  --cyber-red-hover: var(--cyber-gray-light);
+  --cyber-navy: var(--cyber-pure-black);
   --cyber-navy-card: #0A0A0A;
   --cyber-navy-light: #141414;
-  --cyber-cream: #FFFFFF; /* Razor Bone White */
-  --cyber-cream-dim: #A3A3A3;
-  --cyber-cyan: #FFFFFF; /* High-intensity White */
-  --cyber-green: #FFFFFF;
-  --cyber-black: #000000; /* Pure Alien Abyss */
+  --cyber-cream: var(--cyber-white);
+  --cyber-cream-dim: var(--cyber-gray-mid);
+  --cyber-cyan: var(--cyber-white);
+  --cyber-green: var(--cyber-white);
+  --cyber-black: var(--cyber-pure-black);
 }
 
 /* Venom Hazard Stripes: Stark Bone White & Jet Black Marvel Symbiote */
 .venom-mode .hazard-stripes {
   background: repeating-linear-gradient(
     -45deg,
-    #FFFFFF,
-    #FFFFFF 20px,
-    #000000 20px,
-    #000000 40px
+    var(--cyber-white),
+    var(--cyber-white) 20px,
+    var(--cyber-pure-black) 20px,
+    var(--cyber-pure-black) 40px
   );
 }
 
 .venom-mode .hazard-stripes-red {
   background: repeating-linear-gradient(
     -45deg,
-    #FFFFFF,
-    #FFFFFF 16px,
-    #000000 16px,
-    #000000 32px
+    var(--cyber-white),
+    var(--cyber-white) 16px,
+    var(--cyber-pure-black) 16px,
+    var(--cyber-pure-black) 32px
   );
 }
 
@@ -253,16 +292,16 @@ body {
 .venom-mode .barcode-pattern {
   background: repeating-linear-gradient(
     90deg,
-    #FFFFFF 0px,
-    #FFFFFF 3px,
+    var(--cyber-white) 0px,
+    var(--cyber-white) 3px,
     transparent 3px,
     transparent 6px,
-    #FFFFFF 6px,
-    #FFFFFF 10px,
+    var(--cyber-white) 6px,
+    var(--cyber-white) 10px,
     transparent 10px,
     transparent 12px,
-    #FFFFFF 12px,
-    #FFFFFF 18px,
+    var(--cyber-white) 12px,
+    var(--cyber-white) 18px,
     transparent 18px,
     transparent 22px
   );
@@ -271,16 +310,16 @@ body {
 .venom-mode .barcode-pattern-red {
   background: repeating-linear-gradient(
     90deg,
-    #FFFFFF 0px,
-    #FFFFFF 2px,
+    var(--cyber-white) 0px,
+    var(--cyber-white) 2px,
     transparent 2px,
     transparent 5px,
-    #FFFFFF 5px,
-    #FFFFFF 9px,
+    var(--cyber-white) 5px,
+    var(--cyber-white) 9px,
     transparent 9px,
     transparent 11px,
-    #FFFFFF 11px,
-    #FFFFFF 16px,
+    var(--cyber-white) 11px,
+    var(--cyber-white) 16px,
     transparent 16px,
     transparent 20px
   );
@@ -288,37 +327,37 @@ body {
 
 /* Venom Principle Buttons */
 .venom-mode .btn-cyber-primary {
-  background-color: #FFFFFF;
-  color: #000000;
-  box-shadow: 4px 4px 0px #333333;
+  background-color: var(--cyber-white);
+  color: var(--cyber-pure-black);
+  box-shadow: 4px 4px 0px var(--cyber-gray-dark);
 }
 
 .venom-mode .btn-cyber-primary:hover {
-  background-color: #E5E5E5;
-  color: #000000;
-  box-shadow: 6px 6px 0px #FFFFFF;
+  background-color: var(--cyber-gray-light);
+  color: var(--cyber-pure-black);
+  box-shadow: 6px 6px 0px var(--cyber-white);
 }
 
 .venom-mode .btn-cyber-navy {
   background-color: #0A0A0A;
-  color: #FFFFFF;
-  border-color: #FFFFFF;
-  box-shadow: 4px 4px 0px #FFFFFF;
+  color: var(--cyber-white);
+  border-color: var(--cyber-white);
+  box-shadow: 4px 4px 0px var(--cyber-white);
 }
 
 .venom-mode .btn-cyber-navy:hover {
-  background-color: #FFFFFF;
-  color: #000000;
-  box-shadow: 6px 6px 0px #000000;
+  background-color: var(--cyber-white);
+  color: var(--cyber-pure-black);
+  box-shadow: 6px 6px 0px var(--cyber-pure-black);
 }
 
 /* Venom Scrollbar */
 .venom-mode ::-webkit-scrollbar-thumb {
-  background: #FFFFFF;
+  background: var(--cyber-white);
 }
 
 .venom-mode ::-webkit-scrollbar-thumb:hover {
-  background: #A3A3A3;
+  background: var(--cyber-gray-mid);
 }
 
 /* Venom Living Bio-Pulse & Atmosphere */
@@ -332,11 +371,9 @@ body {
 }
 
 .venom-mode body {
-  background-color: #000000 !important;
+  background-color: var(--cyber-pure-black) !important;
 }
 
 .venom-mode main {
   filter: drop-shadow(0 0 40px rgba(0, 0, 0, 0.95));
 }
-
-
